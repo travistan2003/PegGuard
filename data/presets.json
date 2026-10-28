@@ -1,0 +1,74 @@
+{
+  "presets": [
+    {
+      "id": "usdc_2026q2",
+      "name": "USDC-style reserves (Q2 2026)",
+      "supply_bn": 72.93,
+      "as_of": "2026-06-30",
+      "source": "Circle Internet Group Form 10-Q for the quarter ended 30 Jun 2026: $73.16bn segregated reserve cash and equivalents, of which $61.9bn in the Circle Reserve Fund (a BlackRock-managed Rule 2a-7 government money market fund); $72.93bn of deposits from stablecoin holders. The remainder is assumed to be cash at banks. Fund maturity and yield are assumptions.",
+      "description": "Almost entirely a government money market fund (T-bills and overnight repo) plus bank cash. Very short duration: the risk here is bank exposure and how fast the fund can turn into cash, not interest rates.",
+      "lines": [
+        {"name": "Circle Reserve Fund (gov MMF: T-bills + repo)", "asset_class": "mmf_gov", "amount_bn": 61.90, "maturity_years": 0.08, "yield_pct": 3.7},
+        {"name": "Cash at banks", "asset_class": "cash_bank", "amount_bn": 11.26, "maturity_years": 0.0, "yield_pct": 0.0}
+      ]
+    },
+    {
+      "id": "usdt_2026q2",
+      "name": "USDT-style reserves (Q2 2026)",
+      "supply_bn": 183.64,
+      "as_of": "2026-06-30",
+      "source": "Tether Q2 2026 reserves report (BDO Italia attestation, 30 Jun 2026) as summarised by stablecoininsider.org: total assets $187.75bn, liabilities $183.64bn. Bill maturity, repo tenor and yields are assumptions. Check the latest attestation before relying on these figures.",
+      "description": "Mostly T-bills and repo, but about a quarter sits in gold, bitcoin, secured loans and other investments. Over-collateralised by about 2%, which is the buffer that absorbs shocks before the peg is threatened.",
+      "lines": [
+        {"name": "US Treasury bills", "asset_class": "tbill", "amount_bn": 114.96, "maturity_years": 0.25, "yield_pct": 3.7},
+        {"name": "Reverse repo (overnight + term)", "asset_class": "repo", "amount_bn": 25.62, "maturity_years": 0.01, "yield_pct": 3.8},
+        {"name": "Gold (LBMA bars)", "asset_class": "gold", "amount_bn": 18.84, "maturity_years": 0.0, "yield_pct": 0.0},
+        {"name": "Secured loans", "asset_class": "secured_loan", "amount_bn": 13.45, "maturity_years": 0.0, "yield_pct": 0.0},
+        {"name": "Bitcoin", "asset_class": "crypto", "amount_bn": 5.80, "maturity_years": 0.0, "yield_pct": 0.0},
+        {"name": "Other investments", "asset_class": "other", "amount_bn": 5.24, "maturity_years": 0.0, "yield_pct": 0.0},
+        {"name": "Public equities", "asset_class": "other", "amount_bn": 3.76, "maturity_years": 0.0, "yield_pct": 0.0},
+        {"name": "Cash and other (residual)", "asset_class": "cash_bank", "amount_bn": 0.08, "maturity_years": 0.0, "yield_pct": 0.0}
+      ]
+    },
+    {
+      "id": "svb_style",
+      "name": "SVB-style duration mismatch (hypothetical)",
+      "supply_bn": 40.0,
+      "as_of": "Hypothetical",
+      "source": "Hypothetical portfolio for teaching. It mirrors the mistake Silicon Valley Bank made: long-dated Treasuries bought when yields were low, funded by money that can leave overnight.",
+      "description": "60% in 10-year notes bought at a 1.8% yield. Fully backed on day 0, but a rate rise quietly erodes the reserves and a run forces the losses to be realised.",
+      "lines": [
+        {"name": "Cash at banks", "asset_class": "cash_bank", "amount_bn": 4.0, "maturity_years": 0.0, "yield_pct": 0.0},
+        {"name": "3-month T-bills", "asset_class": "tbill", "amount_bn": 4.0, "maturity_years": 0.25, "yield_pct": 1.0},
+        {"name": "2-year Treasury notes", "asset_class": "tnote", "amount_bn": 8.0, "maturity_years": 2.0, "yield_pct": 1.5},
+        {"name": "10-year Treasury notes", "asset_class": "tnote", "amount_bn": 24.0, "maturity_years": 10.0, "yield_pct": 1.8}
+      ]
+    },
+    {
+      "id": "usdc_2023_svb",
+      "name": "USDC on 10 Mar 2023 (SVB weekend, approx.)",
+      "supply_bn": 40.0,
+      "as_of": "2023-03-10",
+      "source": "Circle disclosed on 10 Mar 2023 that $3.3bn of roughly $40bn of USDC reserves was held at Silicon Valley Bank (CNBC, 11 Mar 2023). The split between other bank cash and the Circle Reserve Fund is approximate.",
+      "description": "Used by the case-study page. About a third of the bank cash was at the bank that failed.",
+      "lines": [
+        {"name": "Cash at Silicon Valley Bank", "asset_class": "cash_bank", "amount_bn": 3.3, "maturity_years": 0.0, "yield_pct": 0.0},
+        {"name": "Cash at other banks", "asset_class": "cash_bank", "amount_bn": 6.0, "maturity_years": 0.0, "yield_pct": 0.0},
+        {"name": "Circle Reserve Fund (gov MMF)", "asset_class": "mmf_gov", "amount_bn": 30.7, "maturity_years": 0.08, "yield_pct": 4.5}
+      ]
+    },
+    {
+      "id": "narrow",
+      "name": "Narrow benchmark: cash + short bills (hypothetical)",
+      "supply_bn": 10.0,
+      "as_of": "Hypothetical",
+      "source": "Hypothetical best-practice portfolio built only from assets permitted under both the GENIUS Act and the MAS single-currency stablecoin framework, with a 2% capital buffer.",
+      "description": "Cash spread across banks, overnight repo and bills under 93 days. Use it as the yardstick the other portfolios are compared against.",
+      "lines": [
+        {"name": "Cash across several banks", "asset_class": "cash_bank", "amount_bn": 1.5, "maturity_years": 0.0, "yield_pct": 0.0},
+        {"name": "Overnight reverse repo", "asset_class": "repo", "amount_bn": 3.6, "maturity_years": 0.003, "yield_pct": 3.8},
+        {"name": "T-bills (avg 45 days)", "asset_class": "tbill", "amount_bn": 5.1, "maturity_years": 0.12, "yield_pct": 3.7}
+      ]
+    }
+  ]
+}

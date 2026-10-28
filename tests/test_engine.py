@@ -1,0 +1,91 @@
+import pytest
+
+from pegguard.analysis import breaking_point_grid, regulatory_check, survival_frontier
+from pegguard.engine import Scenario, run_stress
+from pegguard.presets import load_preset, preset_ids
+from pegguard.reserves import ReserveLine
+
+
+def cash_only(amount=100.0):
+    return [ReserveLine("Cash", "cash_bank", amount)]
+
+
+def test_fully_backed_cash_coin_survives_any_run():
+    r = run_stress(cash_only(), 100, Scenario(redemption_pct=90, horizon_days=3))
+    s = r.summary
+    assert s["verdict"] == "HOLDS"
+    assert s["paid"] == pytest.approx(90)
+    assert s["final_coverage"] == pytest.approx(1.0)
+
+
+def test_bank_freeze_with_zero_recovery_lowers_coverage():
+    s = run_stress(cash_only(), 100, Scenario(redemption_pct=0, bank_freeze_pct=10, frozen_recovery_pct=0)).summary
+    assert s["day0_coverage"] == pytest.approx(0.90)
+    assert s["verdict"] == "BELOW PAR"
+
+
+def test_paying_redeemers_at_par_hurts_those_who_stay():
+    # Reserves 90 vs 100 tokens. Redeeming 50 at $1 leaves 40 of reserves for 50 tokens.
+    lines = [ReserveLine("Cash", "cash_bank", 90.0)]
+    s = run_stress(lines, 100, Scenario(redemption_pct=50, horizon_days=1)).summary
+    assert s["final_coverage"] == pytest.approx(40 / 50)
+    assert s["final_coverage"] < s["day0_coverage"]
+
+
+def test_liquidity_limit_creates_unmet_redemptions():
+    lines = [ReserveLine("Loans", "secured_loan", 100.0)]  # 2% sellable per day
+    s = run_stress(lines, 100, Scenario(redemption_pct=50, horizon_days=2)).summary
+    assert s["unmet"] > 0
+    assert s["first_breach_day"] == 1
+    assert s["verdict"] in ("LIQUIDITY STRAIN", "BREAKS")
+
+
+def test_waterfall_uses_cash_before_bills():
+    lines = [ReserveLine("Bills", "tbill", 50, 0.25, 4.0), ReserveLine("Cash", "cash_bank", 50)]
+    r = run_stress(lines, 100, Scenario(redemption_pct=30, horizon_days=1, stress_multiplier=1))
+    sold = dict(zip(r.by_holding["Holding"], r.by_holding["Sold ($bn)"]))
+    assert sold["Cash"] == pytest.approx(30)
+    assert sold["Bills"] == pytest.approx(0)
+
+
+def test_rate_shock_hits_long_notes_not_cash():
+    lines = [ReserveLine("Cash", "cash_bank", 50), ReserveLine("10y", "tnote", 50, 10, 2.0)]
+    s = run_stress(lines, 100, Scenario(rate_shock_bp=300, redemption_pct=0)).summary
+    assert s["rate_loss"] > 5  # 10y note loses >10% on +300bp
+    assert s["day0_coverage"] < 0.95
+
+
+def test_stable_nav_mmf_holds_buck_on_small_shock():
+    lines = [ReserveLine("MMF", "mmf_gov", 100, 0.08, 4.0)]
+    s = run_stress(lines, 100, Scenario(rate_shock_bp=200, redemption_pct=0)).summary
+    assert s["rate_loss"] == pytest.approx(0)
+
+
+def test_panic_feedback_increases_redemptions():
+    lines = [ReserveLine("Cash", "cash_bank", 95.0)]
+    calm = run_stress(lines, 100, Scenario(redemption_pct=20, horizon_days=5)).summary
+    panic = run_stress(lines, 100, Scenario(redemption_pct=20, horizon_days=5, panic_sensitivity=0.3)).summary
+    assert panic["requested"] > calm["requested"]
+
+
+def test_all_presets_run_and_breaking_grid_is_monotonic():
+    for pid in preset_ids():
+        p = load_preset(pid)
+        assert run_stress(p.lines, p.supply_bn, Scenario()).summary["verdict"]
+    p = load_preset("svb_style")
+    grid = breaking_point_grid(p.lines, p.supply_bn, Scenario(horizon_days=5),
+                               rate_shocks_bp=[0, 100, 300], run_sizes_pct=[0, 20, 40])
+    # coverage never improves when the rate shock grows, for the same run size
+    for run, g in grid.groupby("run_pct"):
+        cov = g.sort_values("rate_shock_bp")["min_coverage"].tolist()
+        assert all(a >= b - 1e-12 for a, b in zip(cov, cov[1:]))
+    assert len(survival_frontier(grid)) == 3
+
+
+def test_regulatory_check_flags_long_bills_and_crypto():
+    lines = [ReserveLine("Bills 6m", "tbill", 50, 0.5, 4.0), ReserveLine("BTC", "crypto", 10),
+             ReserveLine("Bills 1m", "tbill", 50, 0.08, 4.0)]
+    rc = regulatory_check(lines, 100)
+    assert rc["GENIUS"]["eligible_bn"] == pytest.approx(50)
+    assert rc["GENIUS"]["passes"] is False
+    assert rc["MAS"]["eligible_bn"] == pytest.approx(50)
