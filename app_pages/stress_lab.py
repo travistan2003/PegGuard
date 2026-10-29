@@ -1,16 +1,21 @@
-"""Stress Lab: the core mechanic. Edit reserves, set a scenario, watch the run play out."""
+"""Stress Lab: the core mechanic. Edit reserves, set a scenario, watch the run play out, then map where it breaks."""
+
+from dataclasses import replace
 
 import pandas as pd
 import streamlit as st
 
 from app_pages.common import (apply_scenario, esc, asset_class_labels, current_portfolio, current_scenario, fmt_bn,
-                              fmt_cov, fmt_token, narrative, scenario_library_options, verdict_banner)
+                              fmt_cov, fmt_token, narrative, portfolio_key, scenario_library_options, verdict_banner)
 from pegguard import charts
-from pegguard.engine import run_stress
-from pegguard.reserves import composition
+from pegguard.analysis import breaking_point_grid, survival_frontier
+from pegguard.engine import Scenario, run_stress
+from pegguard.presets import all_presets
+from pegguard.reserves import composition, frame_to_lines
 
 st.markdown('<div class="pg-hero">Stress Lab</div>', unsafe_allow_html=True)
-st.markdown('<div class="pg-sub">Set the shock, start the run, and see whether every token still gets its $1.</div>',
+st.markdown('<div class="pg-sub">Set the shock, start the run, and see whether every token still gets its $1. '
+            'Then map every rate shock and run size to find exactly where the peg breaks.</div>',
             unsafe_allow_html=True)
 
 meta = st.session_state.portfolio_meta
@@ -106,42 +111,106 @@ st.session_state.last_result_summary = s
 
 # ---------------------------------------------------------------- results --------------
 st.divider()
-st.subheader("Result")
-verdict_banner(s)
-m = st.columns(5)
-m[0].metric("Lowest coverage", fmt_cov(s["min_coverage"]),
-            delta=f"{(s['min_coverage'] - s['start_coverage']) * 100:+.2f}pp vs start", delta_color="normal")
-m[1].metric("Value per token (worst)", fmt_token(s["min_token_value"]))
-m[2].metric("Total losses", fmt_bn(s["total_loss"], 3))
-m[3].metric("Redemptions paid", fmt_bn(s["paid"]), help=f"Requested {fmt_bn(s['requested'])}")
-m[4].metric("Unmet at end", fmt_bn(s["unmet"]),
-            delta=None if s["first_breach_day"] is None else f"late from day {s['first_breach_day']}",
-            delta_color="inverse")
+tab_run, tab_bp = st.tabs(["Your scenario", "Breaking point"])
 
-for line in narrative(s, sc, supply):
-    st.markdown("- " + line)
+with tab_run:
+    verdict_banner(s)
+    m = st.columns(5)
+    m[0].metric("Lowest coverage", fmt_cov(s["min_coverage"]),
+                delta=f"{(s['min_coverage'] - s['start_coverage']) * 100:+.2f}pp vs start", delta_color="normal")
+    m[1].metric("Value per token (worst)", fmt_token(s["min_token_value"]))
+    m[2].metric("Total losses", fmt_bn(s["total_loss"], 3))
+    m[3].metric("Redemptions paid", fmt_bn(s["paid"]), help=f"Requested {fmt_bn(s['requested'])}")
+    m[4].metric("Unmet at end", fmt_bn(s["unmet"]),
+                delta=None if s["first_breach_day"] is None else f"late from day {s['first_breach_day']}",
+                delta_color="inverse")
 
-g1, g2 = st.columns(2)
-with g1:
-    st.plotly_chart(charts.reserves_vs_tokens(result.daily), width="stretch",
-                    config={"displayModeBar": False})
-with g2:
-    st.plotly_chart(charts.coverage_path(result.daily), width="stretch", config={"displayModeBar": False})
-g3, g4 = st.columns(2)
-with g3:
-    st.plotly_chart(charts.redemptions_bars(result.daily), width="stretch",
-                    config={"displayModeBar": False})
-with g4:
-    st.plotly_chart(charts.loss_breakdown(s), width="stretch", config={"displayModeBar": False})
-st.plotly_chart(charts.holdings_used(result.by_holding), width="stretch", config={"displayModeBar": False})
+    for line in narrative(s, sc, supply):
+        st.markdown("- " + line)
 
-with st.expander("Day-by-day table", icon=":material/table:"):
-    show = result.daily.rename(columns={
-        "day": "Day", "new_requests": "New requests", "queued_in": "Carried over", "requested": "Requested",
-        "paid": "Paid", "unmet": "Unmet", "fire_sale_loss": "Fire-sale loss", "supply": "Tokens",
-        "reserves": "Reserves", "liquid_next_day": "Liquid next day", "coverage": "Coverage",
-        "panic_multiplier": "Panic x"})
-    st.dataframe(show.style.format({c: "{:,.3f}" for c in show.columns if c != "Day"}),
-                 width="stretch", hide_index=True)
-    st.download_button("Download CSV", result.daily.to_csv(index=False), file_name="pegguard_stress_run.csv",
-                       mime="text/csv", icon=":material/download:")
+    g1, g2 = st.columns(2)
+    with g1:
+        st.plotly_chart(charts.reserves_vs_tokens(result.daily), width="stretch",
+                        config={"displayModeBar": False})
+    with g2:
+        st.plotly_chart(charts.coverage_path(result.daily), width="stretch", config={"displayModeBar": False})
+    g3, g4 = st.columns(2)
+    with g3:
+        st.plotly_chart(charts.redemptions_bars(result.daily), width="stretch",
+                        config={"displayModeBar": False})
+    with g4:
+        st.plotly_chart(charts.loss_breakdown(s), width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(charts.holdings_used(result.by_holding), width="stretch", config={"displayModeBar": False})
+
+    with st.expander("Day-by-day table", icon=":material/table:"):
+        show = result.daily.rename(columns={
+            "day": "Day", "new_requests": "New requests", "queued_in": "Carried over", "requested": "Requested",
+            "paid": "Paid", "unmet": "Unmet", "fire_sale_loss": "Fire-sale loss", "supply": "Tokens",
+            "reserves": "Reserves", "liquid_next_day": "Liquid next day", "coverage": "Coverage",
+            "panic_multiplier": "Panic x"})
+        st.dataframe(show.style.format({c: "{:,.3f}" for c in show.columns if c != "Day"}),
+                     width="stretch", hide_index=True)
+        st.download_button("Download CSV", result.daily.to_csv(index=False), file_name="pegguard_stress_run.csv",
+                           mime="text/csv", icon=":material/download:")
+
+
+# ---------------------------------------------------------------- breaking point -------
+
+
+def _grid_scenario(sc: Scenario) -> dict:
+    """Scenario without the two grid axes, so moving those sliders reuses the cached grid."""
+    return replace(sc, name="grid", rate_shock_bp=0.0, redemption_pct=0.0).to_dict()
+
+
+@st.cache_data(show_spinner="Running 441 stress tests...")
+def grid_for(pkey: tuple, sc_dict: dict) -> pd.DataFrame:
+    df = pd.DataFrame([list(r) for r in pkey[0]],
+                      columns=["Holding", "Asset class", "Amount ($bn)", "Maturity (yrs)", "Yield (%)"])
+    for col in ["Amount ($bn)", "Maturity (yrs)", "Yield (%)"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    return breaking_point_grid(frame_to_lines(df), pkey[1], Scenario(**sc_dict))
+
+
+@st.cache_data(show_spinner=False)
+def compare(bp: int, sc_dict: dict) -> pd.DataFrame:
+    rows = []
+    for p in all_presets():
+        base = replace(Scenario(**sc_dict), rate_shock_bp=float(bp))
+        g = breaking_point_grid(p.lines, p.supply_bn, base, rate_shocks_bp=[bp], run_sizes_pct=range(0, 105, 5))
+        fr = survival_frontier(g)
+        v = fr["max_run_holds"].iloc[0]
+        rows.append({"Portfolio": p.name, "Largest run survived (%)": 0.0 if pd.isna(v) else v})
+    return pd.DataFrame(rows).sort_values("Largest run survived (%)", ascending=False)
+
+
+with tab_bp:
+    st.caption("Every cell is a full stress run using your scenario above, with only the rate shock and run size "
+               "changed. Red means reserves fell below $1 per token; \"late\" means some redemptions could not be "
+               "paid on time. The dashed line is the largest run paid on time; the solid line is the largest run "
+               "that is paid on time *and* leaves reserves at par. The marker is your current scenario.")
+    grid = grid_for(portfolio_key(), _grid_scenario(sc))
+    frontier = survival_frontier(grid)
+    st.plotly_chart(charts.breaking_heatmap(grid, frontier, marker=(sc.rate_shock_bp, sc.redemption_pct)),
+                    width="stretch", config={"displayModeBar": False})
+
+    b1, b2 = st.columns([1, 1.2])
+    with b1:
+        st.subheader("Survival frontier")
+        f = frontier.rename(columns={"rate_shock_bp": "Shock (bp)",
+                                     "max_run_paid_on_time": "Paid on time",
+                                     "max_run_at_par": "At par",
+                                     "max_run_holds": "Fully holds"})
+        f = f.iloc[::2].copy()
+        for col in ["Paid on time", "At par", "Fully holds"]:
+            f[col] = f[col].map(lambda v: "never" if pd.isna(v) else f"{v:.0f}%")
+        f["Shock (bp)"] = f["Shock (bp)"].map(lambda v: f"+{v:.0f}")
+        st.dataframe(f, width="stretch", hide_index=True, height=420)
+        st.caption("Largest run (% of tokens) that is paid on time / leaves reserves at par / does both. "
+                   "'never' means reserves are already below par at that rate shock before anyone redeems.")
+    with b2:
+        st.subheader("Compare portfolios")
+        bp_pick = st.select_slider("Rate shock for the comparison (bp)", options=list(range(0, 525, 25)),
+                                   value=int(min(max(sc.rate_shock_bp, 0), 500) // 25 * 25), key="bp_compare")
+        cmp = compare(bp_pick, _grid_scenario(sc))
+        st.plotly_chart(charts.preset_frontier_bars(cmp), width="stretch", config={"displayModeBar": False})
+        st.caption("Uses each portfolio's bundled reserves (not your edits) and your other scenario settings.")

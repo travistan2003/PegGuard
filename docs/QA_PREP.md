@@ -11,7 +11,7 @@ gives a working interface fast. The engine (`pegguard/`) has no UI code, so it c
 
 **Why a deterministic scenario model, not Monte Carlo or machine learning?**
 Risk committees need to audit and explain the number. With a deterministic model every input maps to an output you can
-trace by hand. ML would need historical depeg data, and there are only a handful of real events. The Breaking Point
+trace by hand. ML would need historical depeg data, and there are only a handful of real events. The breaking-point
 grid gives us the sensitivity analysis that a simulation would.
 
 **How do you reprice bonds after a rate shock?**
@@ -26,7 +26,7 @@ Government MMFs keep a stable $1.00 NAV unless the shadow NAV drops below $0.995
 **Where do the liquidity and fire-sale numbers come from?**
 They are transparent judgement calls, ordered by how liquid each market really is (cash and overnight repo instant;
 T-bills deep but not infinite; loans almost locked up). They are shown on the Methodology page, editable per line, and
-the stress multiplier scales all of them together. The Breaking Point map shows how much conclusions move.
+the stress multiplier scales all of them together. The breaking-point map in the Stress Lab shows how much conclusions move.
 
 **What is the liquidity waterfall and why that order?**
 Cheapest and fastest first: cash, repo, MMF, bills (shortest first), notes, gold, crypto, other, loans. That is what a
@@ -38,7 +38,7 @@ Optional feedback inspired by Diamond & Dybvig (1983): each day's new requests a
 staying is irrational. Off by default, so base results are not driven by it.
 
 **What happens if the API is down during the demo?**
-Nothing. Every page except Live Monitor works offline, and Live Monitor falls back to the last cached fetch, then to the
+Nothing. Everything except the Live Monitor section on the Overview works offline, and that section falls back to the last cached fetch, then to the
 bundled snapshot. We demo with live data off.
 
 ## Data and validity

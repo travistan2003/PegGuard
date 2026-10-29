@@ -1,9 +1,10 @@
-"""Overview: what PegGuard does, and a scorecard of every bundled portfolio under standard scenarios."""
+"""Overview: what PegGuard does, a scorecard of every bundled portfolio, and the live stablecoin market."""
 
 import pandas as pd
 import streamlit as st
 
 from app_pages.common import current_portfolio, esc, fmt_bn, verdict_chip
+from app_pages.live_monitor import render as live_monitor
 from pegguard.analysis import STANDARD_SCENARIOS, regulatory_check, risk_profile, run_library
 from pegguard.presets import all_presets
 
@@ -87,3 +88,6 @@ k[3].metric("Cash in 5 days", f"{rp['day5_capacity_share']:.0%}",
 k[4].metric("GENIUS-eligible backing", f"{rc['GENIUS']['eligible_backing']:.0%}",
             help="Eligible reserve assets / tokens. Needs to be at least 100%.")
 st.caption(esc(st.session_state.portfolio_meta.get("source", "")))
+
+st.divider()
+live_monitor()

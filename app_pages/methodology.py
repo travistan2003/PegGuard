@@ -44,7 +44,7 @@ st.markdown(r"""
 * **Value per token** = min(1, coverage): what a token is worth if the issuer were wound down at that point.
 * **Verdict:** **HOLDS** (paid on time, coverage ≥ 1) · **LIQUIDITY STRAIN** (solvent, but some redemptions are late)
   · **BELOW PAR** (paid, but coverage < 1) · **BREAKS** (both).
-* **Breaking Point** re-runs the engine on a 21 × 21 grid of rate shocks (0-500bp) and run sizes (0-100%).
+* **Breaking point** (a Stress Lab tab) re-runs the engine on a 21 × 21 grid of rate shocks (0-500bp) and run sizes (0-100%).
 """)
 
 st.subheader("4. Asset-class assumptions")
@@ -61,8 +61,8 @@ st.caption("Defaults are judgement calls, set conservatively and documented in p
 
 st.subheader("5. What the model leaves out (on purpose)")
 st.markdown("""
-* **No secondary-market price model.** We value what reserves can pay, not where the token trades. The SVB case shows the
-  two can differ when redemption is closed.
+* **No secondary-market price model.** We value what reserves can pay, not where the token trades. USDC's March 2023
+  depeg during the SVB weekend shows the two can differ when redemption is closed.
 * **No interest income, fees or issuer capital injections** during the run (all small over days, or discretionary).
 * **One parallel rate shock**, no yield-curve twists; no correlation model between shocks. Users choose the combination.
 * **Reserve data** come from issuer reports (quarterly / monthly), so they are point-in-time. Presets show the as-of date.

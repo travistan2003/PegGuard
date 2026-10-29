@@ -34,7 +34,7 @@ streamlit run app.py                 # opens http://localhost:8501
 pytest -q
 ```
 
-No API keys are needed. Everything except the Live Monitor works with no internet connection.
+No API keys are needed. Everything except the Live Monitor section of the Overview works with no internet connection.
 
 ### Command-line version of the core mechanic
 
@@ -50,12 +50,9 @@ python scripts/run_scenario.py --preset usdt_2026q2 --run 50 --days 5 --crypto-s
 
 | Page | What you get |
 |---|---|
-| **Overview** | Scorecard: every bundled portfolio under the same five standard scenarios, plus headline risk metrics. |
-| **Stress Lab** (core) | Edit the reserves, set the shocks and the run, get a verdict, a day-by-day path, loss breakdown and a plain-English narrative. |
-| **Breaking Point** | 441 stress runs on a grid of rate shocks (0-500bp) x run sizes (0-100%): the exact frontier where the peg fails. Compares portfolios. |
+| **Overview** | Scorecard: every bundled portfolio under the same five standard scenarios, headline risk metrics, and a **Live Monitor** of current USD stablecoin supply and peg deviation (DefiLlama, with offline fallback). |
+| **Stress Lab** (core) | Edit the reserves and set the shocks and the run. **Your scenario** tab: a verdict, a day-by-day path, loss breakdown and a plain-English narrative. **Breaking point** tab: 441 stress runs on a grid of rate shocks (0-500bp) x run sizes (0-100%) showing the exact frontier where the peg fails, plus a portfolio comparison. |
 | **Reserve Quality** | Duration, rate sensitivity, a liquidity ladder (cash raisable in 1-20 days) and a simplified GENIUS Act / MAS eligibility check. |
-| **Case: USDC & SVB** | Replays March 2023: the model's value per token vs USDC's market low. |
-| **Live Monitor** | Current USD stablecoin supply and peg deviation (DefiLlama), with offline fallback. |
 | **Methodology** | Every formula, assumption, limitation and source. |
 
 ### The engine in one paragraph
@@ -101,7 +98,7 @@ Kept: one core mechanic that works reliably (reserve stress + run simulation), t
 
 Left out on purpose (and why):
 
-* **No token price / AMM model.** We value what the reserves can pay, which is what a treasury team needs. The SVB case shows why market price can differ.
+* **No token price / AMM model.** We value what the reserves can pay, which is what a treasury team needs. USDC's March 2023 depeg shows why market price can differ.
 * **No accounts, alerts or multi-user features.** Not needed to prove the mechanic.
 * **No on-chain reserve verification.** Fiat reserves are off-chain; attestations are the data source.
 * **One parallel rate shock**, no yield-curve twists, no stochastic simulation: easier to explain and audit.

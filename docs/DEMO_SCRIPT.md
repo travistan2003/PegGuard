@@ -4,7 +4,7 @@ Total: 8:00 hard stop. Q&A follows immediately. Suggested split for 4 speakers (
 
 ## Before you present (checklist)
 
-- [ ] The night before, while online: `python scripts/refresh_snapshot.py` (fills the Live Monitor and exact SVB prices).
+- [ ] The night before, while online: `python scripts/refresh_snapshot.py` (fills the Live Monitor on the Overview with current data).
 - [ ] On the demo laptop: `streamlit run app.py`, open http://localhost:8501, **sidebar toggle "Fetch live market data" OFF** (offline demo mode).
 - [ ] Browser zoom 110-125% so the back row can read it. Close other tabs and notifications.
 - [ ] Keep a screen recording of this exact flow on the desktop as a backup.
@@ -26,9 +26,13 @@ Total: 8:00 hard stop. Q&A follows immediately. Suggested split for 4 speakers (
 
 ## 1:30-6:00 · Live demo (Speaker B drives, Speaker C narrates)
 
-**1. Overview page (30s).** Point at the scorecard.
+**1. Overview page (45s).** Point at the scorecard.
 > "Five portfolios, five identical scenarios. Green holds, orange means reserves fell below a dollar per token, red
 > means it breaks. Notice every coin fails *differently*. That's the point."
+
+Scroll to the **Live Monitor** at the bottom.
+> "And this is the market right now: supply and how far each coin trades from a dollar. Supply falling while the price
+> slips is what a run looks like from the outside."
 
 **2. Stress Lab with the SVB-style portfolio (90s).** Sidebar: pick **SVB-style duration mismatch**.
 > "This portfolio is 100% backed today, but 60% sits in 10-year notes bought at 1.8%."
@@ -45,7 +49,7 @@ Point at the narrative and the coverage chart.
 Open **More shocks**, set **Panic feedback 0.3**.
 > "Turn on panic: as coverage falls, redemptions accelerate. Now it breaks."
 
-**3. Breaking Point (60s).** Click **Breaking Point**.
+**3. Breaking point (90s).** Still in the Stress Lab, click the **Breaking point** tab under the scenario.
 > "Every cell here is a full stress run, 441 of them. The black line is the largest run this portfolio survives at
 > each rate shock. On the right, the same comparison across all portfolios at 200bp: the USDC-style reserves survive any
 > run; the SVB-style one survives none."
@@ -53,11 +57,6 @@ Open **More shocks**, set **Panic feedback 0.3**.
 **4. USDT and liquidity (45s).** Sidebar: pick **USDT-style reserves (Q2 2026)**, go to **Reserve Quality**.
 > "USDT is over-collateralised and barely cares about rates. Its weakness is speed: with secured loans and gold, only
 > about half of tokens can be paid in one day, and GENIUS-eligible assets cover about 77% of tokens."
-
-**5. SVB case (45s).** Click **Case: USDC & SVB**.
-> "Can the model explain March 2023? Even if every dollar at SVB was lost, USDC was worth 92 cents. The market went to
-> 88 because it was a weekend: bank rails were shut, so nobody could redeem. Slide recovery to 100% and you get the
-> Sunday-night government guarantee: back to a dollar."
 
 ## 6:00-7:30 · Scope, trade-offs, next steps (Speaker D)
 
