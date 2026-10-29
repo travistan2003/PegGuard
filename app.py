@@ -14,9 +14,9 @@ init_state()
 st.logo("assets/logo.svg", icon_image="assets/icon.svg", size="large")
 
 pages = [
-    st.Page("app_pages/overview.py", title="Overview", icon=":material/dashboard:", default=True),
+    st.Page("app_pages/overview.py", title="Dashboard", icon=":material/dashboard:", default=True),
     st.Page("app_pages/stress_lab.py", title="Stress Lab", icon=":material/science:"),
-    st.Page("app_pages/reserve_quality.py", title="Reserve Quality", icon=":material/fact_check:"),
+    st.Page("app_pages/reserve_quality.py", title="Issuer Profile", icon=":material/fact_check:"),
     st.Page("app_pages/methodology.py", title="Methodology", icon=":material/menu_book:"),
 ]
 nav = st.navigation(pages)

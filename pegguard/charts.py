@@ -212,7 +212,7 @@ def supply_bars(df: pd.DataFrame, n: int = 10) -> go.Figure:
                            cliponaxis=False, hovertemplate="%{y}: $%{x:,.2f}bn<extra></extra>"))
     fig = _base(fig, height=max(240, 34 * len(d) + 60), title="Largest USD stablecoins by supply ($bn)")
     fig.update_yaxes(autorange="reversed", showgrid=False)
-    fig.update_xaxes(showgrid=True, gridcolor=GRID, range=[0, float(d["supply_usd"].max() / 1e9) * 1.2])
+    fig.update_xaxes(showgrid=True, gridcolor=GRID, range=[0, float(d["supply_usd"].max() / 1e9) * 1.3])
     return fig
 
 

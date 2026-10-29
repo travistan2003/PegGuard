@@ -4,7 +4,7 @@ Total: 8:00 hard stop. Q&A follows immediately. Suggested split for 4 speakers (
 
 ## Before you present (checklist)
 
-- [ ] The night before, while online: `python scripts/refresh_snapshot.py` (fills the Live Monitor on the Overview with current data).
+- [ ] The night before, while online: `python scripts/refresh_snapshot.py` (fills the Live Monitor on the Dashboard with current data).
 - [ ] On the demo laptop: `streamlit run app.py`, open http://localhost:8501, **sidebar toggle "Fetch live market data" OFF** (offline demo mode).
 - [ ] Browser zoom 110-125% so the back row can read it. Close other tabs and notifications.
 - [ ] Keep a screen recording of this exact flow on the desktop as a backup.
@@ -26,13 +26,14 @@ Total: 8:00 hard stop. Q&A follows immediately. Suggested split for 4 speakers (
 
 ## 1:30-6:00 · Live demo (Speaker B drives, Speaker C narrates)
 
-**1. Overview page (45s).** Point at the scorecard.
+**1. Dashboard (45s).** Point at the USDT and USDC tiles.
+> "Mei's firm holds 30 million dollars, set here in the sidebar. Each tile shows the coin's buffer above par, how much
+> can be paid out in a day, the largest run it survives, and what Mei's position is worth in the worst standard
+> scenario."
+
+Scroll past the **Live Monitor** to the **Scorecard**.
 > "Five portfolios, five identical scenarios. Green holds, orange means reserves fell below a dollar per token, red
 > means it breaks. Notice every coin fails *differently*. That's the point."
-
-Scroll to the **Live Monitor** at the bottom.
-> "And this is the market right now: supply and how far each coin trades from a dollar. Supply falling while the price
-> slips is what a run looks like from the outside."
 
 **2. Stress Lab with the SVB-style portfolio (90s).** Sidebar: pick **SVB-style duration mismatch**.
 > "This portfolio is 100% backed today, but 60% sits in 10-year notes bought at 1.8%."
@@ -42,7 +43,8 @@ Drag **Interest-rate shock to 300bp**, **Run size to 20%**.
 > days. The issuer pays them $1 each by selling through a waterfall: cash first, then bills, then notes at a fire-sale
 > discount."
 
-Point at the narrative and the coverage chart.
+Point at the **Your position** panel and the coverage chart (the plain-English narrative is under **Explain this
+result**).
 > "Everyone who redeems gets a dollar, but the people who stay are now backed by 81 cents. That's the first-mover
 > advantage that makes runs self-fulfilling: Diamond and Dybvig from Week 9."
 
@@ -54,7 +56,7 @@ Open **More shocks**, set **Panic feedback 0.3**.
 > each rate shock. On the right, the same comparison across all portfolios at 200bp: the USDC-style reserves survive any
 > run; the SVB-style one survives none."
 
-**4. USDT and liquidity (45s).** Sidebar: pick **USDT-style reserves (Q2 2026)**, go to **Reserve Quality**.
+**4. USDT and liquidity (45s).** Sidebar: pick **USDT-style reserves (Q2 2026)**, go to **Issuer Profile**.
 > "USDT is over-collateralised and barely cares about rates. Its weakness is speed: with secured loans and gold, only
 > about half of tokens can be paid in one day, and GENIUS-eligible assets cover about 77% of tokens."
 

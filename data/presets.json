@@ -2,6 +2,7 @@
   "presets": [
     {
       "id": "usdc_2026q2",
+      "group": "issuer", "symbol": "USDC",
       "name": "USDC-style reserves (Q2 2026)",
       "supply_bn": 72.93,
       "as_of": "2026-06-30",
@@ -14,6 +15,7 @@
     },
     {
       "id": "usdt_2026q2",
+      "group": "issuer", "symbol": "USDT",
       "name": "USDT-style reserves (Q2 2026)",
       "supply_bn": 183.64,
       "as_of": "2026-06-30",
@@ -32,6 +34,7 @@
     },
     {
       "id": "svb_style",
+      "group": "benchmark",
       "name": "SVB-style duration mismatch (hypothetical)",
       "supply_bn": 40.0,
       "as_of": "Hypothetical",
@@ -46,6 +49,7 @@
     },
     {
       "id": "usdc_2023_svb",
+      "group": "benchmark",
       "name": "USDC on 10 Mar 2023 (SVB weekend, approx.)",
       "supply_bn": 40.0,
       "as_of": "2023-03-10",
@@ -59,6 +63,7 @@
     },
     {
       "id": "narrow",
+      "group": "benchmark",
       "name": "Narrow benchmark: cash + short bills (hypothetical)",
       "supply_bn": 10.0,
       "as_of": "Hypothetical",

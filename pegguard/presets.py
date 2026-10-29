@@ -26,6 +26,12 @@ def preset_names() -> dict[str, str]:
     return {p["id"]: p["name"] for p in _raw()}
 
 
+def preset_info() -> list[dict]:
+    """Metadata for every preset (no reserve lines): id, name, group ('issuer' or 'benchmark'), symbol, as_of."""
+    return [{"id": p["id"], "name": p["name"], "group": p.get("group", "benchmark"), "symbol": p.get("symbol"),
+             "as_of": p.get("as_of", "")} for p in _raw()]
+
+
 def load_preset(preset_id: str) -> Portfolio:
     for p in _raw():
         if p["id"] == preset_id:

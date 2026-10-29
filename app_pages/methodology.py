@@ -10,6 +10,20 @@ page_header("How it works", "Methodology",
             "A transparent, deliberately simple model. Every number below can be changed, and every result "
             "can be reproduced from the command line.")
 
+c = st.columns(3)
+cards = [
+    ("01", "Reserves", "Load a real issuer's reported reserve mix (USDT, USDC) or build your own: cash, repo, "
+                       "money market funds, T-bills, notes, gold, bitcoin, loans."),
+    ("02", "Shock and run", "Day 0: rates jump, a bank fails, crypto crashes. Days 1-N: holders redeem and the issuer "
+                            "sells assets through a liquidity waterfall, paying fire-sale discounts."),
+    ("03", "Verdict", "Coverage ratio, value per token, unmet redemptions and the exact run size where the peg "
+                      "breaks, translated into the loss and exit time for your own position."),
+]
+for col, (k, t, body) in zip(c, cards):
+    col.markdown(f'<div class="pg-card"><div class="k">{k}</div><div class="t">{t}</div>'
+                 f'<div class="pg-note">{body}</div></div>', unsafe_allow_html=True)
+st.write("")
+
 section("Day 0: shocks", "01")
 st.markdown(r"""
 **Interest rates (Week 3 bond maths).** A parallel shock $\Delta y$ reprices every rate-sensitive holding instantly.
@@ -45,6 +59,9 @@ st.markdown(r"""
 * **Value per token** = min(1, coverage): what a token is worth if the issuer were wound down at that point.
 * **Verdict:** **HOLDS** (paid on time, coverage ≥ 1) · **LIQUIDITY STRAIN** (solvent, but some redemptions are late)
   · **BELOW PAR** (paid, but coverage < 1) · **BREAKS** (both).
+* **Your position.** *If you hold:* position × worst value per token during the run. *If you redeem on day 1:*
+  requests are paid first in, first out, so a day-1 request is paid in full on the first day that cumulative payments
+  reach the day-1 requests. Your own request is assumed small next to the run.
 * **Breaking point** (a Stress Lab tab) re-runs the engine on a 21 × 21 grid of rate shocks (0-500bp) and run sizes (0-100%).
 """)
 

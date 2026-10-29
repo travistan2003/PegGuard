@@ -38,7 +38,7 @@ Optional feedback inspired by Diamond & Dybvig (1983): each day's new requests a
 staying is irrational. Off by default, so base results are not driven by it.
 
 **What happens if the API is down during the demo?**
-Nothing. Everything except the Live Monitor section on the Overview works offline, and that section falls back to the last cached fetch, then to the
+Nothing. Everything except the Live Monitor section on the Dashboard works offline, and that section falls back to the last cached fetch, then to the
 bundled snapshot. We demo with live data off.
 
 ## Data and validity

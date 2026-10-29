@@ -6,10 +6,10 @@ import pandas as pd
 import streamlit as st
 
 from app_pages.common import (apply_scenario, esc, asset_class_labels, current_portfolio, current_scenario, fmt_bn,
-                              fmt_cov, fmt_token, narrative, page_header, portfolio_key, scenario_library_options,
-                              section, verdict_banner)
+                              fmt_bp, fmt_cov, fmt_m, fmt_token, narrative, page_header, portfolio_key, position_m,
+                              scenario_library_options, section, verdict_banner)
 from pegguard import charts
-from pegguard.analysis import breaking_point_grid, survival_frontier
+from pegguard.analysis import breaking_point_grid, position_outcome, survival_frontier
 from pegguard.engine import Scenario, run_stress
 from pegguard.presets import all_presets
 from pegguard.reserves import composition, frame_to_lines
@@ -118,16 +118,38 @@ with tab_run:
     verdict_banner(s)
     m = st.columns(5)
     m[0].metric("Lowest coverage", fmt_cov(s["min_coverage"]),
-                delta=f"{(s['min_coverage'] - s['start_coverage']) * 100:+.2f}pp vs start", delta_color="normal")
-    m[1].metric("Worst token value", fmt_token(s["min_token_value"]))
-    m[2].metric("Total losses", fmt_bn(s["total_loss"], 3))
+                delta=f"{(s['min_coverage'] - s['start_coverage']) * 1e4:+,.0f}bp vs start", delta_color="normal")
+    haircut_bp = max(0.0, 1 - s["min_token_value"]) * 1e4
+    m[1].metric("Worst token value", fmt_token(s["min_token_value"]),
+                delta=f"-{haircut_bp:,.0f}bp" if haircut_bp >= 0.5 else None, delta_color="normal")
+    m[2].metric("Total losses", fmt_bn(s["total_loss"], 3),
+                help=f"{s['total_loss'] / reserves * 1e4:,.0f}bp of starting reserves" if reserves else None)
     m[3].metric("Redeemed", fmt_bn(s["paid"]), help=f"Requested {fmt_bn(s['requested'])}")
     m[4].metric("Unmet at end", fmt_bn(s["unmet"]),
                 delta=None if s["first_breach_day"] is None else f"late from day {s['first_breach_day']}",
                 delta_color="inverse")
 
-    for line in narrative(s, sc, supply):
-        st.markdown("- " + line)
+    # ------------------------------------------------ what it means for your position
+    pos = position_m()
+    out = position_outcome(s, result.daily, pos)
+    if out["exit_day"] is not None:
+        exit_v, exit_s = f"Day {out['exit_day']}", "paid $1 in full on that business day"
+    else:
+        exit_v = "Not in time"
+        exit_s = f"only {out['exit_share_paid']:.0%} paid by day {sc.horizon_days}"
+    stayers_bp = max(0.0, 1 - s["implied_token_value"]) * 1e4 if pd.notna(s["implied_token_value"]) else 0.0
+    cells = [
+        ("If you hold", fmt_m(out["hold_value"]), f"loss {fmt_m(out['hold_loss'])} · {out['haircut_bp']:,.0f}bp"),
+        ("If you redeem on day 1", exit_v, exit_s),
+        ("Cushion at the low point", fmt_bp(s["min_coverage"] - 1), "lowest reserves vs tokens outstanding"),
+        ("Holders who stay lose", f"{stayers_bp:,.0f}bp", "at the end, vs $1 paid to early redeemers"),
+    ]
+    st.markdown(
+        f'<div class="pg-pos"><div class="lbl">Your position · {fmt_m(pos, 1)} of {meta["name"]}</div>'
+        '<div class="grid">'
+        + "".join(f'<div><div class="l">{l}</div><div class="v">{v}</div><div class="s">{sub}</div></div>'
+                  for l, v, sub in cells).replace("$", "&#36;")
+        + "</div></div>", unsafe_allow_html=True)
 
     g1, g2 = st.columns(2)
     with g1:
@@ -141,9 +163,13 @@ with tab_run:
                         config={"displayModeBar": False})
     with g4:
         st.plotly_chart(charts.loss_breakdown(s), width="stretch", config={"displayModeBar": False})
-    st.plotly_chart(charts.holdings_used(result.by_holding), width="stretch", config={"displayModeBar": False})
 
-    with st.expander("Day-by-day table", icon=":material/table:"):
+    with st.expander("Explain this result", icon=":material/lightbulb:"):
+        for line in narrative(s, sc, supply):
+            st.markdown("- " + line)
+        st.plotly_chart(charts.holdings_used(result.by_holding), width="stretch", config={"displayModeBar": False})
+
+    with st.expander("Day-by-day table and export", icon=":material/table:"):
         show = result.daily.rename(columns={
             "day": "Day", "new_requests": "New requests", "queued_in": "Carried over", "requested": "Requested",
             "paid": "Paid", "unmet": "Unmet", "fire_sale_loss": "Fire-sale loss", "supply": "Tokens",
@@ -151,8 +177,19 @@ with tab_run:
             "panic_multiplier": "Panic x"})
         st.dataframe(show.style.format({c: "{:,.3f}" for c in show.columns if c != "Day"}),
                      width="stretch", hide_index=True)
-        st.download_button("Download CSV", result.daily.to_csv(index=False), file_name="pegguard_stress_run.csv",
+        report = pd.DataFrame([{
+            "portfolio": meta["name"], **sc.to_dict(),
+            **{k: v for k, v in s.items() if k not in ("headline",)},
+            "position_m": pos, "position_hold_value_m": out["hold_value"], "position_loss_m": out["hold_loss"],
+            "position_haircut_bp": out["haircut_bp"], "position_exit_day": out["exit_day"],
+            "position_exit_share_paid": out["exit_share_paid"],
+        }])
+        d1, d2 = st.columns(2)
+        d1.download_button("Day-by-day CSV", result.daily.to_csv(index=False), file_name="pegguard_stress_run.csv",
                            mime="text/csv", icon=":material/download:")
+        d2.download_button("Scenario summary CSV", report.to_csv(index=False),
+                           file_name="pegguard_scenario_summary.csv", mime="text/csv", icon=":material/download:",
+                           help="Settings, results and your position in one row, for a risk report")
 
 
 # ---------------------------------------------------------------- breaking point -------

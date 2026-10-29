@@ -5,6 +5,7 @@
 * standard_scenarios    a fixed scenario library so different coins can be compared like for like
 * regulatory_check      simplified GENIUS Act / MAS SCS reserve eligibility test
 * risk_profile          duration, weighted maturity and liquidity ladder of the reserves
+* position_outcome      what a stress run means for one holder's position: loss if held, days to exit if redeemed
 """
 
 from __future__ import annotations
@@ -184,4 +185,47 @@ def risk_profile(lines: list[ReserveLine], supply: float) -> dict:
         "day1_capacity_share": cap1 / supply if supply else np.nan,
         "day5_capacity_share": cap5 / supply if supply else np.nan,
         "ladder": ladder,
+    }
+
+
+# --------------------------------------------------------------------------------------
+# Position view (for a holder of the token)
+# --------------------------------------------------------------------------------------
+
+def exit_timing(daily: pd.DataFrame) -> tuple[int | None, float]:
+    """When a holder who asks to redeem on day 1 is paid in full.
+
+    The queue is first in, first out, so day-1 requests are paid before anything filed later. Returns
+    (first day fully paid or None, share of the day-1 request paid by the end of the horizon). The holder's own
+    request is assumed small next to the run, so it does not change the run itself.
+    """
+    run = daily[daily["day"] > 0]
+    if run.empty:
+        return None, float("nan")
+    first = float(run["new_requests"].iloc[0])
+    if first <= 1e-12:
+        # Nobody else is redeeming: paid on day 1 if anything can be sold that day.
+        return (1, 1.0) if float(daily["liquid_next_day"].iloc[0]) > 0 else (None, 0.0)
+    cum_paid = run["paid"].cumsum().to_numpy()
+    done = np.nonzero(cum_paid >= first * (1 - 1e-9))[0]
+    day_full = int(run["day"].iloc[done[0]]) if len(done) else None
+    return day_full, min(1.0, float(cum_paid[-1]) / first)
+
+
+def position_outcome(summary: dict, daily: pd.DataFrame, position: float) -> dict:
+    """Translate a stress run into P&L for a position of `position` (any currency unit) in the token.
+
+    * hold:   marked at the worst value per token during the run (what you could lose by staying in)
+    * redeem: ask for $1 on day 1; paid in full on `exit_day`, or only `exit_share_paid` by the end
+    """
+    worst = summary["min_token_value"]
+    haircut = 0.0 if not np.isfinite(worst) else max(0.0, 1.0 - worst)
+    day_full, share = exit_timing(daily)
+    return {
+        "position": position,
+        "hold_value": position * (1 - haircut),
+        "hold_loss": position * haircut,
+        "haircut_bp": haircut * 10_000,
+        "exit_day": day_full,
+        "exit_share_paid": share,
     }

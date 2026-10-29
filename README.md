@@ -34,7 +34,7 @@ streamlit run app.py                 # opens http://localhost:8501
 pytest -q
 ```
 
-No API keys are needed. Everything except the Live Monitor section of the Overview works with no internet connection.
+No API keys are needed. Everything except the Live Monitor section of the Dashboard works with no internet connection.
 
 ### Command-line version of the core mechanic
 
@@ -50,9 +50,9 @@ python scripts/run_scenario.py --preset usdt_2026q2 --run 50 --days 5 --crypto-s
 
 | Page | What you get |
 |---|---|
-| **Overview** | Scorecard: every bundled portfolio under the same five standard scenarios, headline risk metrics, and a **Live Monitor** of current USD stablecoin supply and peg deviation (DefiLlama, with offline fallback). |
-| **Stress Lab** (core) | Edit the reserves and set the shocks and the run. **Your scenario** tab: a verdict, a day-by-day path, loss breakdown and a plain-English narrative. **Breaking point** tab: 441 stress runs on a grid of rate shocks (0-500bp) x run sizes (0-100%) showing the exact frontier where the peg fails, plus a portfolio comparison. |
-| **Reserve Quality** | Duration, rate sensitivity, a liquidity ladder (cash raisable in 1-20 days) and a simplified GENIUS Act / MAS eligibility check. |
+| **Dashboard** | One tile per issuer (peg, buffer in bp, 1-day cash, largest run survived, worst value per token, loss on *your* position), a **Live Monitor** of supply and peg deviation with alerts (DefiLlama, auto-refresh, offline fallback), a sortable **risk ranking**, and the five-scenario **scorecard** with issuers separated from benchmarks. |
+| **Stress Lab** (core) | Edit the reserves and set the shocks and the run. **Your scenario** tab: a verdict, key numbers in bp, what it means for your position (loss if you hold, day you are paid if you redeem), charts, a plain-English explanation and CSV exports. **Breaking point** tab: 441 stress runs on a grid of rate shocks (0-500bp) x run sizes (0-100%) showing the exact frontier where the peg fails, plus a portfolio comparison. |
+| **Issuer Profile** | Age of the reserve data, buffer and rate sensitivity in bp, duration, a liquidity ladder (cash raisable in 1-20 days) and a simplified GENIUS Act / MAS eligibility check. |
 | **Methodology** | Every formula, assumption, limitation and source. |
 
 ### The engine in one paragraph

@@ -19,6 +19,11 @@ from pegguard.presets import load_preset, preset_names  # noqa: E402
 from pegguard.reserves import ASSET_CLASSES, frame_to_lines, lines_to_frame  # noqa: E402
 
 DEFAULT_PRESET = "usdt_2026q2"
+DEFAULT_POSITION_M = 30.0  # $m of the token held; drives every P&L figure in the app
+
+# Live Monitor alert thresholds
+PEG_ALERT_BP = 25.0  # price this far from $1 is flagged
+SUPPLY_ALERT_PCT = -5.0  # supply falling this much in 7 days is flagged
 
 # Scenario widgets: session key -> default
 SC_DEFAULTS = {
@@ -82,6 +87,41 @@ CSS = """
   .pg-table td .val {font-size:.76rem; color: var(--pg-muted); margin-top:4px; font-variant-numeric: tabular-nums;}
   .pg-table td.name {font-weight:600; color: var(--pg-ink);}
 
+  .pg-table tr.grp td {background:#F8FAFC; font-size:.7rem; font-weight:700; letter-spacing:.1em;
+                       text-transform:uppercase; color: var(--pg-muted); padding:8px 18px; text-align:left;}
+  .pg-table tr.bench td.name {color: var(--pg-muted); font-weight:500;}
+
+  /* market status line */
+  .pg-status {display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; font-size:.85rem; color: var(--pg-muted);
+              margin: 2px 0 2px 0;}
+  .pg-status b {color: var(--pg-ink);}
+  .pg-status .dot {width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:-8px;}
+
+  /* coin tiles */
+  .pg-coin {border: 1px solid var(--pg-line); border-radius: 12px; padding: 16px 18px; background: var(--pg-card);
+            box-shadow: var(--pg-shadow); height: 100%;}
+  .pg-coin .top {display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
+  .pg-coin .sym {font-size: 1.3rem; font-weight: 700; color: var(--pg-ink); letter-spacing: -0.01em;}
+  .pg-coin .nm {font-size: .78rem; color: var(--pg-muted);}
+  .pg-coin .px {font-size: 1.3rem; font-weight: 650; color: var(--pg-ink); text-align:right;
+                font-variant-numeric: tabular-nums;}
+  .pg-coin .grid {display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px 14px; margin-top: 14px;
+                  padding-top: 12px; border-top: 1px solid #F0F3F7;}
+  .pg-coin .grid .l {font-size: .68rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+                     color: var(--pg-muted);}
+  .pg-coin .grid .v {font-size: 1rem; font-weight: 650; color: var(--pg-ink); font-variant-numeric: tabular-nums;}
+  .pg-coin .grid .v.bad {color: #C53030;} .pg-coin .grid .v.good {color: #13804A;}
+
+  /* position panel */
+  .pg-pos {border: 1px solid var(--pg-line); border-radius: 12px; padding: 14px 18px; background: #F8FBFB;
+           border-left: 4px solid var(--pg-accent); margin: 4px 0 16px 0;}
+  .pg-pos .lbl {font-size: .68rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+                color: var(--pg-accent); margin-bottom: 6px;}
+  .pg-pos .grid {display:grid; grid-template-columns: repeat(4, 1fr); gap: 10px 18px;}
+  .pg-pos .l {font-size: .74rem; color: var(--pg-muted);}
+  .pg-pos .v {font-size: 1.15rem; font-weight: 650; color: var(--pg-ink); font-variant-numeric: tabular-nums;}
+  .pg-pos .s {font-size: .78rem; color: var(--pg-muted);}
+
   /* metrics */
   div[data-testid="stMetric"] {background: var(--pg-card); border: 1px solid var(--pg-line); border-radius: 12px;
                                padding: 14px 16px; box-shadow: var(--pg-shadow);}
@@ -140,6 +180,7 @@ def init_state() -> None:
         # Re-assigning keeps widget values alive when the user switches pages.
         st.session_state[k] = st.session_state.get(k, v)
     st.session_state.setdefault("live_data", False)
+    st.session_state.setdefault("position_m", DEFAULT_POSITION_M)
 
 
 def on_preset_change() -> None:
@@ -172,6 +213,21 @@ def current_scenario(name: str = "Your scenario") -> Scenario:
     )
 
 
+def reference_scenario(name: str = "Reference") -> Scenario:
+    """The app's default scenario settings (ignores the user's sliders), for like-for-like rankings."""
+    d = SC_DEFAULTS
+    return Scenario(
+        name=name, rate_shock_bp=d["sc_rate"], redemption_pct=d["sc_run"], horizon_days=d["sc_days"],
+        front_load=d["sc_front"], bank_freeze_pct=d["sc_freeze"], frozen_recovery_pct=d["sc_recovery"],
+        stress_multiplier=d["sc_stress"], gold_shock_pct=d["sc_gold"], crypto_shock_pct=d["sc_crypto"],
+        risk_shock_pct=d["sc_risk"], loan_loss_pct=d["sc_loan"], panic_sensitivity=d["sc_panic"],
+    )
+
+
+def position_m() -> float:
+    return float(st.session_state.get("position_m", DEFAULT_POSITION_M))
+
+
 def current_portfolio():
     lines = frame_to_lines(st.session_state.reserves_df)
     return lines, float(st.session_state.supply)
@@ -197,13 +253,18 @@ def sidebar() -> None:
         lines, supply = current_portfolio()
         reserves = sum(l.amount_bn for l in lines)
         backing = f"{reserves / supply:.2%}" if supply else "n/a"
+        buffer = fmt_bp(reserves / supply - 1) if supply else "n/a"
         status = "Edited in the Stress Lab" if meta.get("edited") else f"As of {meta.get('as_of', '')}"
         st.markdown(
             f'<div class="pg-side-card">'
             f'<div class="row"><span class="l">Tokens outstanding</span><span class="r">${supply:,.2f}bn</span></div>'
             f'<div class="row"><span class="l">Reserves</span><span class="r">${reserves:,.2f}bn</span></div>'
             f'<div class="row"><span class="l">Backing ratio</span><span class="r">{backing}</span></div>'
+            f'<div class="row"><span class="l">Buffer above par</span><span class="r">{buffer}</span></div>'
             f'<div class="row"><span class="l">{status}</span></div></div>', unsafe_allow_html=True)
+        st.number_input("Your position ($m)", min_value=0.0, step=5.0, format="%.1f", key="position_m",
+                        help="How much of this stablecoin you hold. Used to turn every stress result into a "
+                             "dollar loss and a time to exit.")
         st.divider()
         st.toggle("Fetch live market data", key="live_data",
                   help="Off = demo mode: uses cached / bundled data, so nothing depends on Wi-Fi.")
@@ -224,6 +285,20 @@ def fmt_bn(x: float, dp: int = 2) -> str:
     if x is None or pd.isna(x):
         return "n/a"
     return f"${x:,.{dp}f}bn"
+
+
+def fmt_bp(x: float, signed: bool = True) -> str:
+    """A fraction as basis points: 0.0224 -> '+224bp'."""
+    if x is None or pd.isna(x):
+        return "n/a"
+    return f"{x * 1e4:+,.0f}bp" if signed else f"{x * 1e4:,.0f}bp"
+
+
+def fmt_m(x: float, dp: int = 2) -> str:
+    """$m amount (position sizes)."""
+    if x is None or pd.isna(x):
+        return "n/a"
+    return f"${x:,.{dp}f}m"
 
 
 def fmt_cov(x: float) -> str:

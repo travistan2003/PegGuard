@@ -1,6 +1,7 @@
 import pytest
 
-from pegguard.analysis import breaking_point_grid, regulatory_check, survival_frontier
+from pegguard.analysis import (breaking_point_grid, exit_timing, position_outcome, regulatory_check,
+                               survival_frontier)
 from pegguard.engine import Scenario, run_stress
 from pegguard.presets import load_preset, preset_ids
 from pegguard.reserves import ReserveLine
@@ -89,3 +90,28 @@ def test_regulatory_check_flags_long_bills_and_crypto():
     assert rc["GENIUS"]["eligible_bn"] == pytest.approx(50)
     assert rc["GENIUS"]["passes"] is False
     assert rc["MAS"]["eligible_bn"] == pytest.approx(50)
+
+
+def test_position_cash_coin_exits_day_one_without_loss():
+    r = run_stress(cash_only(), 100, Scenario(redemption_pct=90, horizon_days=3))
+    out = position_outcome(r.summary, r.daily, 30.0)
+    assert out["exit_day"] == 1
+    assert out["exit_share_paid"] == pytest.approx(1.0)
+    assert out["hold_loss"] == pytest.approx(0.0)
+
+
+def test_position_illiquid_coin_cannot_exit_on_time():
+    # Only 2% of loans can be sold per day, so a 50% run on day 1 is never fully paid within 5 days.
+    lines = [ReserveLine("Loans", "secured_loan", 100)]
+    r = run_stress(lines, 100, Scenario(redemption_pct=50, horizon_days=5, front_load=0.9))
+    day, share = exit_timing(r.daily)
+    assert day is None
+    assert 0 < share < 1
+
+
+def test_position_loss_matches_worst_token_value():
+    lines = [ReserveLine("10y note", "tnote", 100, maturity_years=10, yield_pct=2.0)]
+    r = run_stress(lines, 100, Scenario(rate_shock_bp=300, redemption_pct=0, horizon_days=1))
+    out = position_outcome(r.summary, r.daily, 1_000.0)
+    assert out["hold_loss"] == pytest.approx(1_000.0 * (1 - r.summary["min_token_value"]))
+    assert out["haircut_bp"] > 1_000  # a 300bp shock on a 10y note costs well over 10%
