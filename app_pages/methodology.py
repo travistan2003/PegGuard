@@ -3,13 +3,14 @@
 import pandas as pd
 import streamlit as st
 
+from app_pages.common import page_header, section
 from pegguard.reserves import ASSET_CLASSES
 
-st.markdown('<div class="pg-hero">Methodology</div>', unsafe_allow_html=True)
-st.markdown('<div class="pg-sub">A transparent, deliberately simple model. Every number below can be changed, and '
-            'every result can be reproduced from the command line.</div>', unsafe_allow_html=True)
+page_header("How it works", "Methodology",
+            "A transparent, deliberately simple model. Every number below can be changed, and every result "
+            "can be reproduced from the command line.")
 
-st.subheader("1. Day 0: shocks")
+section("Day 0: shocks", "01")
 st.markdown(r"""
 **Interest rates (Week 3 bond maths).** A parallel shock $\Delta y$ reprices every rate-sensitive holding instantly.
 
@@ -22,7 +23,7 @@ failure freezes a share of the bank cash; the frozen amount is valued at the ass
 to pay redemptions during the run.
 """)
 
-st.subheader("2. Days 1 to N: the run")
+section("Days 1 to N: the run", "02")
 st.markdown(r"""
 Base redemption requests follow a front-loaded schedule: day $d$ gets weight $\propto (1-f)^{d-1}$, scaled so the run
 adds up to the chosen % of tokens. Requests not paid on a day are carried over.
@@ -38,7 +39,7 @@ reserves are short, the shortfall concentrates on the holders who stay. That fir
 self-fulfilling.
 """)
 
-st.subheader("3. Outputs")
+section("Outputs", "03")
 st.markdown(r"""
 * **Coverage** = reserves (marked to market, frozen cash at recovery value) ÷ tokens outstanding, every day.
 * **Value per token** = min(1, coverage): what a token is worth if the issuer were wound down at that point.
@@ -47,7 +48,7 @@ st.markdown(r"""
 * **Breaking point** (a Stress Lab tab) re-runs the engine on a 21 × 21 grid of rate shocks (0-500bp) and run sizes (0-100%).
 """)
 
-st.subheader("4. Asset-class assumptions")
+section("Asset-class assumptions", "04")
 df = pd.DataFrame([
     {"Asset class": a.label, "Daily liquidity": a.daily_liquidity, "Fire-sale discount (bp)": a.fire_sale_bps,
      "Rate-sensitive": a.rate_kind != "none", "GENIUS-eligible": a.genius, "MAS-eligible": a.mas,
@@ -59,7 +60,7 @@ st.dataframe(df.style.format({"Daily liquidity": "{:.0%}", "Fire-sale discount (
 st.caption("Defaults are judgement calls, set conservatively and documented in pegguard/reserves.py. The stress "
            "multiplier scales all discounts together, which is the main sensitivity to test.")
 
-st.subheader("5. What the model leaves out (on purpose)")
+section("What the model leaves out (on purpose)", "05")
 st.markdown("""
 * **No secondary-market price model.** We value what reserves can pay, not where the token trades. USDC's March 2023
   depeg during the SVB weekend shows the two can differ when redemption is closed.
@@ -68,7 +69,7 @@ st.markdown("""
 * **Reserve data** come from issuer reports (quarterly / monthly), so they are point-in-time. Presets show the as-of date.
 """)
 
-st.subheader("6. Sources")
+section("Sources", "06")
 st.markdown("""
 * Circle Internet Group, Form 10-Q for the quarter ended 30 June 2026 (SEC EDGAR): USDC reserves and Circle Reserve Fund.
 * Tether Q2 2026 reserves report (BDO Italia attestation, 30 June 2026), via stablecoininsider.org summary.

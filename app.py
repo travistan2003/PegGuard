@@ -11,6 +11,7 @@ st.set_page_config(page_title="PegGuard: Stablecoin Stress Tester", page_icon=":
 from app_pages.common import init_state, sidebar  # noqa: E402
 
 init_state()
+st.logo("assets/logo.svg", icon_image="assets/icon.svg", size="large")
 
 pages = [
     st.Page("app_pages/overview.py", title="Overview", icon=":material/dashboard:", default=True),

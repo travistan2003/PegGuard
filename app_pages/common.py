@@ -29,22 +29,87 @@ SC_DEFAULTS = {
 
 CSS = """
 <style>
-  .block-container {padding-top: 2.2rem; padding-bottom: 3rem; max-width: 1300px;}
-  h1, h2, h3 {letter-spacing: -0.01em;}
-  .pg-hero {font-size: 2.1rem; font-weight: 700; margin: 0 0 .2rem 0; color: #0F172A;}
-  .pg-sub {font-size: 1.05rem; color: #475569; margin-bottom: 1.2rem;}
-  .pg-banner {border-radius: 12px; padding: 14px 18px; margin: 6px 0 14px 0; color: white;}
-  .pg-banner .v {font-size: 1.25rem; font-weight: 700; letter-spacing: .02em;}
-  .pg-banner .h {font-size: .98rem; opacity: .95; margin-top: 2px;}
-  .pg-chip {display:inline-block; padding: 2px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600;
-            color: white; white-space: nowrap;}
-  .pg-note {font-size: .85rem; color: #64748B;}
-  .pg-card {border: 1px solid #E2E8F0; border-radius: 12px; padding: 14px 16px; background: #FFFFFF; height: 100%;}
-  .pg-card b {color:#0F172A;}
-  div[data-testid="stMetric"] {background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px;
-                               padding: 10px 14px;}
-  div[data-testid="stMetricLabel"] p {font-size: .82rem; color: #475569;}
-  section[data-testid="stSidebar"] .pg-brand {font-size: 1.35rem; font-weight: 800; color: #0F766E;}
+  :root {--pg-ink:#0B1324; --pg-muted:#5B6B82; --pg-line:#E3E8EF; --pg-card:#FFFFFF; --pg-accent:#0D7A6F;
+         --pg-shadow: 0 1px 2px rgba(11,19,36,.04), 0 1px 3px rgba(11,19,36,.06);}
+  .block-container {padding-top: 2.4rem; padding-bottom: 4rem; max-width: 1280px;}
+  header[data-testid="stHeader"] {background: transparent;}
+  h1, h2, h3, h4 {letter-spacing: -0.015em;}
+  [data-testid="stMarkdownContainer"] h2, [data-testid="stHeadingWithActionElements"] h2 {margin-top: .4rem;}
+  hr {margin: 1.6rem 0 !important; border-color: var(--pg-line) !important;}
+
+  /* page header */
+  .pg-eyebrow {font-size: .72rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+               color: var(--pg-accent); margin-bottom: .35rem;}
+  .pg-hero {font-size: 2.05rem; font-weight: 700; line-height: 1.18; margin: 0 0 .5rem 0; color: var(--pg-ink);
+            letter-spacing: -0.025em;}
+  .pg-sub {font-size: 1.02rem; line-height: 1.55; color: var(--pg-muted); max-width: 820px; margin-bottom: 1.6rem;}
+  .pg-head {padding-bottom: .4rem; margin-bottom: 1.2rem; border-bottom: 1px solid var(--pg-line);}
+
+  /* section labels */
+  .pg-section {display:flex; align-items:baseline; gap:.6rem; margin: .2rem 0 .2rem 0;}
+  .pg-section .t {font-size: 1.15rem; font-weight: 650; color: var(--pg-ink); letter-spacing: -0.01em;}
+  .pg-section .n {font-size: .72rem; font-weight: 600; color: var(--pg-muted); letter-spacing: .1em;
+                  text-transform: uppercase;}
+
+  /* verdicts */
+  .pg-banner {display:flex; align-items:center; gap:16px; background: var(--pg-card); border: 1px solid var(--pg-line);
+              border-left: 5px solid; border-radius: 12px; padding: 16px 20px; margin: 4px 0 18px 0;
+              box-shadow: var(--pg-shadow);}
+  .pg-banner .v {font-size: 1.05rem; font-weight: 700; letter-spacing: .06em; white-space: nowrap;}
+  .pg-banner .h {font-size: .98rem; color: var(--pg-ink); line-height: 1.45;}
+  .pg-banner .lbl {font-size: .68rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+                   color: var(--pg-muted);}
+  .pg-chip {display:inline-flex; align-items:center; gap:6px; padding: 3px 10px; border-radius: 999px;
+            font-size: .72rem; font-weight: 650; letter-spacing: .04em; white-space: nowrap;}
+  .pg-chip::before {content:""; width:6px; height:6px; border-radius:50%; background: currentColor;}
+
+  /* cards */
+  .pg-note {font-size: .85rem; color: var(--pg-muted); line-height: 1.5;}
+  .pg-card {border: 1px solid var(--pg-line); border-radius: 12px; padding: 18px 20px; background: var(--pg-card);
+            height: 100%; box-shadow: var(--pg-shadow);}
+  .pg-card .k {font-size: .72rem; font-weight: 700; letter-spacing: .1em; color: var(--pg-accent);}
+  .pg-card .t {font-size: 1rem; font-weight: 650; color: var(--pg-ink); margin: 4px 0 6px 0;}
+
+  /* scorecard table */
+  .pg-table {width:100%; border-collapse:separate; border-spacing:0; font-size:.88rem; background: var(--pg-card);
+             border: 1px solid var(--pg-line); border-radius: 12px; overflow: hidden; box-shadow: var(--pg-shadow);}
+  .pg-table th {text-align:center; padding:12px 10px; background:#F8FAFC; color: var(--pg-muted); font-weight:600;
+                font-size:.76rem; line-height:1.35; border-bottom:1px solid var(--pg-line);}
+  .pg-table th:first-child, .pg-table td:first-child {text-align:left; padding-left:18px;}
+  .pg-table td {text-align:center; padding:12px 10px; border-bottom:1px solid #F0F3F7; vertical-align:middle;}
+  .pg-table tr:last-child td {border-bottom:none;}
+  .pg-table tr:hover td {background:#FAFBFD;}
+  .pg-table td .val {font-size:.76rem; color: var(--pg-muted); margin-top:4px; font-variant-numeric: tabular-nums;}
+  .pg-table td.name {font-weight:600; color: var(--pg-ink);}
+
+  /* metrics */
+  div[data-testid="stMetric"] {background: var(--pg-card); border: 1px solid var(--pg-line); border-radius: 12px;
+                               padding: 14px 16px; box-shadow: var(--pg-shadow);}
+  div[data-testid="stMetricLabel"] p {font-size: .74rem; font-weight: 600; color: var(--pg-muted);
+                                      text-transform: uppercase; letter-spacing: .06em;}
+  div[data-testid="stMetricValue"] {font-variant-numeric: tabular-nums;}
+
+  /* charts, tables, expanders sit on white cards */
+  div[data-testid="stPlotlyChart"] {background: var(--pg-card); border: 1px solid var(--pg-line); border-radius: 12px;
+                                    padding: 8px 10px 4px 10px; box-shadow: var(--pg-shadow);}
+  div[data-testid="stExpander"] details {background: var(--pg-card); border-color: var(--pg-line);}
+
+  /* tabs */
+  div[data-baseweb="tab-list"] {gap: 4px; border-bottom: 1px solid var(--pg-line);}
+  button[data-baseweb="tab"] {padding: 10px 18px; font-weight: 600;}
+  button[data-baseweb="tab"] p {font-size: .95rem;}
+
+  /* sidebar */
+  section[data-testid="stSidebar"] .pg-tag {font-size: .7rem; font-weight: 600; letter-spacing: .12em;
+                                            text-transform: uppercase; color: #6F849C; margin: .2rem 0 .1rem 0;}
+  section[data-testid="stSidebar"] .pg-side-card {border: 1px solid #1E3550; background: #10223A; border-radius: 10px;
+                                                  padding: 12px 14px; margin-top: 4px;}
+  section[data-testid="stSidebar"] .pg-side-card .row {display:flex; justify-content:space-between; align-items:baseline;
+                                                       padding: 3px 0;}
+  section[data-testid="stSidebar"] .pg-side-card .l {font-size: .78rem; color: #8FA3BA;}
+  section[data-testid="stSidebar"] .pg-side-card .r {font-size: .98rem; font-weight: 650; color: #FFFFFF;
+                                                     font-variant-numeric: tabular-nums;}
+  section[data-testid="stSidebar"] .pg-foot {font-size: .72rem; color: #6F849C; line-height: 1.5;}
 </style>
 """
 
@@ -124,8 +189,7 @@ def portfolio_key() -> tuple:
 
 def sidebar() -> None:
     with st.sidebar:
-        st.markdown('<div class="pg-brand">PegGuard</div>', unsafe_allow_html=True)
-        st.caption("Stablecoin reserve stress tester")
+        st.markdown('<div class="pg-tag">Workspace</div>', unsafe_allow_html=True)
         names = preset_names()
         st.selectbox("Reserve portfolio", options=list(names), format_func=names.get, key="preset_id",
                      on_change=on_preset_change)
@@ -133,17 +197,18 @@ def sidebar() -> None:
         lines, supply = current_portfolio()
         reserves = sum(l.amount_bn for l in lines)
         backing = f"{reserves / supply:.2%}" if supply else "n/a"
+        status = "Edited in the Stress Lab" if meta.get("edited") else f"As of {meta.get('as_of', '')}"
         st.markdown(
-            f'<div class="pg-card" style="padding:10px 12px"><span class="pg-note">Tokens outstanding</span><br>'
-            f'<b style="font-size:1.15rem">${supply:,.2f}bn</b><br><span class="pg-note">Reserves / tokens</span><br>'
-            f'<b style="font-size:1.15rem">{backing}</b></div>', unsafe_allow_html=True)
-        if meta.get("edited"):
-            st.caption("Edited in the Stress Lab")
-        st.caption(f"As of: {meta.get('as_of', '')}")
+            f'<div class="pg-side-card">'
+            f'<div class="row"><span class="l">Tokens outstanding</span><span class="r">${supply:,.2f}bn</span></div>'
+            f'<div class="row"><span class="l">Reserves</span><span class="r">${reserves:,.2f}bn</span></div>'
+            f'<div class="row"><span class="l">Backing ratio</span><span class="r">{backing}</span></div>'
+            f'<div class="row"><span class="l">{status}</span></div></div>', unsafe_allow_html=True)
         st.divider()
         st.toggle("Fetch live market data", key="live_data",
                   help="Off = demo mode: uses cached / bundled data, so nothing depends on Wi-Fi.")
-        st.caption("NUS IS4228 · Technical track · Team Bulge")
+        st.markdown('<div class="pg-foot">NUS IS4228 · Technical track · Team Bulge<br>'
+                    'Educational project, not investment or legal advice.</div>', unsafe_allow_html=True)
 
 
 # --------------------------------------------------------------------------------------
@@ -169,17 +234,32 @@ def fmt_token(x: float) -> str:
     return "n/a" if x is None or pd.isna(x) else f"${x:.4f}"
 
 
+def page_header(eyebrow: str, title: str, subtitle: str = "") -> None:
+    sub = f'<div class="pg-sub">{subtitle}</div>' if subtitle else ""
+    html = f'<div class="pg-eyebrow">{eyebrow}</div><div class="pg-hero">{title}</div>{sub}'
+    # HTML entity so a pair of dollar signs is not rendered as LaTeX maths
+    st.markdown(html.replace("$", "&#36;"), unsafe_allow_html=True)
+
+
+def section(title: str, label: str = "") -> None:
+    """Section heading with an optional small uppercase label (e.g. a step number)."""
+    lbl = f'<span class="n">{label}</span>' if label else ""
+    st.markdown(f'<div class="pg-section">{lbl}<span class="t">{title}</span></div>', unsafe_allow_html=True)
+
+
 def verdict_banner(summary: dict) -> None:
     color = VERDICT_COLORS.get(summary["verdict"], "#334155")
     st.markdown(
-        f'<div class="pg-banner" style="background:{color}"><div class="v">{summary["verdict"]}</div>'
+        f'<div class="pg-banner" style="border-left-color:{color}">'
+        f'<div><div class="lbl">Verdict</div><div class="v" style="color:{color}">{summary["verdict"]}</div></div>'
         f'<div class="h">{summary["headline"]}</div></div>',
         unsafe_allow_html=True,
     )
 
 
 def verdict_chip(v: str) -> str:
-    return f'<span class="pg-chip" style="background:{VERDICT_COLORS.get(v, "#334155")}">{v}</span>'
+    color = VERDICT_COLORS.get(v, "#334155")
+    return f'<span class="pg-chip" style="color:{color}; background:{color}14; border:1px solid {color}33">{v}</span>'
 
 
 def narrative(summary: dict, sc: Scenario, supply0: float) -> list[str]:

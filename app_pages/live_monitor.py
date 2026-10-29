@@ -3,7 +3,7 @@
 import pandas as pd
 import streamlit as st
 
-from app_pages.common import esc
+from app_pages.common import esc, section
 from pegguard import charts
 from pegguard.data_sources import load_price_history, load_stablecoins
 
@@ -19,7 +19,7 @@ def get_history(live: bool):
 
 
 def render() -> None:
-    st.subheader("Live Monitor")
+    section("USD stablecoin market", "Live monitor")
     st.caption(esc("Supply and peg deviation for the largest USD stablecoins. Supply falling fast while the price "
                    "slips below $1 is what an early-stage run looks like from the outside."))
     live = bool(st.session_state.get("live_data", False))

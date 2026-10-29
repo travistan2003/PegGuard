@@ -6,17 +6,17 @@ import pandas as pd
 import streamlit as st
 
 from app_pages.common import (apply_scenario, esc, asset_class_labels, current_portfolio, current_scenario, fmt_bn,
-                              fmt_cov, fmt_token, narrative, portfolio_key, scenario_library_options, verdict_banner)
+                              fmt_cov, fmt_token, narrative, page_header, portfolio_key, scenario_library_options,
+                              section, verdict_banner)
 from pegguard import charts
 from pegguard.analysis import breaking_point_grid, survival_frontier
 from pegguard.engine import Scenario, run_stress
 from pegguard.presets import all_presets
 from pegguard.reserves import composition, frame_to_lines
 
-st.markdown('<div class="pg-hero">Stress Lab</div>', unsafe_allow_html=True)
-st.markdown('<div class="pg-sub">Set the shock, start the run, and see whether every token still gets its $1. '
-            'Then map every rate shock and run size to find exactly where the peg breaks.</div>',
-            unsafe_allow_html=True)
+page_header("Core mechanic", "Stress Lab",
+            "Set the shock, start the run, and see whether every token still gets its $1. Then map every rate "
+            "shock and run size to find exactly where the peg breaks.")
 
 meta = st.session_state.portfolio_meta
 
@@ -25,7 +25,7 @@ lines, supply = current_portfolio()
 reserves = sum(l.amount_bn for l in lines)
 left, right = st.columns([1.35, 1])
 with left:
-    st.subheader(meta["name"])
+    section(meta["name"], "Step 1 · Reserves")
     st.caption(esc(meta.get("description", "")))
     with st.expander("Edit reserves", expanded=False, icon=":material/edit:"):
         with st.form(f"reserve_form_{st.session_state.editor_version}", border=False):
@@ -62,7 +62,7 @@ with right:
 
 # ---------------------------------------------------------------- scenario -------------
 st.divider()
-st.subheader("Scenario")
+section("Shocks and redemption run", "Step 2 · Scenario")
 lib = scenario_library_options()
 c0, c00 = st.columns([2, 1])
 with c0:
@@ -111,16 +111,17 @@ st.session_state.last_result_summary = s
 
 # ---------------------------------------------------------------- results --------------
 st.divider()
-tab_run, tab_bp = st.tabs(["Your scenario", "Breaking point"])
+section("Results", "Step 3 · Outcome")
+tab_run, tab_bp = st.tabs([":material/insights: Your scenario", ":material/grid_on: Breaking point"])
 
 with tab_run:
     verdict_banner(s)
     m = st.columns(5)
     m[0].metric("Lowest coverage", fmt_cov(s["min_coverage"]),
                 delta=f"{(s['min_coverage'] - s['start_coverage']) * 100:+.2f}pp vs start", delta_color="normal")
-    m[1].metric("Value per token (worst)", fmt_token(s["min_token_value"]))
+    m[1].metric("Worst token value", fmt_token(s["min_token_value"]))
     m[2].metric("Total losses", fmt_bn(s["total_loss"], 3))
-    m[3].metric("Redemptions paid", fmt_bn(s["paid"]), help=f"Requested {fmt_bn(s['requested'])}")
+    m[3].metric("Redeemed", fmt_bn(s["paid"]), help=f"Requested {fmt_bn(s['requested'])}")
     m[4].metric("Unmet at end", fmt_bn(s["unmet"]),
                 delta=None if s["first_breach_day"] is None else f"late from day {s['first_breach_day']}",
                 delta_color="inverse")
@@ -195,7 +196,7 @@ with tab_bp:
 
     b1, b2 = st.columns([1, 1.2])
     with b1:
-        st.subheader("Survival frontier")
+        section("Survival frontier")
         f = frontier.rename(columns={"rate_shock_bp": "Shock (bp)",
                                      "max_run_paid_on_time": "Paid on time",
                                      "max_run_at_par": "At par",
@@ -208,7 +209,7 @@ with tab_bp:
         st.caption("Largest run (% of tokens) that is paid on time / leaves reserves at par / does both. "
                    "'never' means reserves are already below par at that rate shock before anyone redeems.")
     with b2:
-        st.subheader("Compare portfolios")
+        section("Compare portfolios")
         bp_pick = st.select_slider("Rate shock for the comparison (bp)", options=list(range(0, 525, 25)),
                                    value=int(min(max(sc.rate_shock_bp, 0), 500) // 25 * 25), key="bp_compare")
         cmp = compare(bp_pick, _grid_scenario(sc))

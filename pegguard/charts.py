@@ -6,19 +6,20 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-INK = "#0F172A"
-MUTED = "#64748B"
-GRID = "#E2E8F0"
-ACCENT = "#0F766E"
-TOKENS = "#334155"
-GOOD = "#15803D"
-WARN = "#B45309"
-BAD = "#B91C1C"
+INK = "#0B1324"
+MUTED = "#5B6B82"
+GRID = "#EDF1F6"
+AXIS = "#D5DCE6"
+ACCENT = "#0D7A6F"
+TOKENS = "#2B3A55"
+GOOD = "#13804A"
+WARN = "#B7791F"
+BAD = "#C53030"
 PAR = "#94A3B8"
 
-VERDICT_COLORS = {"HOLDS": GOOD, "LIQUIDITY STRAIN": WARN, "BELOW PAR": "#C2410C", "BREAKS": BAD}
+VERDICT_COLORS = {"HOLDS": GOOD, "LIQUIDITY STRAIN": WARN, "BELOW PAR": "#C05621", "BREAKS": BAD}
 
-FONT = dict(family="Inter, -apple-system, Segoe UI, Roboto, sans-serif", color=INK, size=13)
+FONT = dict(family="Inter, -apple-system, Segoe UI, Roboto, sans-serif", color=INK, size=12.5)
 
 
 def _base(fig: go.Figure, height: int = 340, title: str | None = None) -> go.Figure:
@@ -26,15 +27,20 @@ def _base(fig: go.Figure, height: int = 340, title: str | None = None) -> go.Fig
         template="simple_white",
         height=height,
         font=FONT,
-        margin=dict(l=10, r=10, t=48 if title else 16, b=10),
-        title=dict(text=title, x=0, xanchor="left", font=dict(size=15, color=INK)) if title else None,
-        legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="right", x=1, font=dict(size=12)),
-        hoverlabel=dict(font=dict(family=FONT["family"])),
+        margin=dict(l=8, r=8, t=76 if title else 16, b=8),
+        title=dict(text=title, x=0.005, xanchor="left", y=1, yanchor="top", pad=dict(t=10),
+                   font=dict(size=14, color=INK, weight=600)) if title else None,
+        # legend sits on its own row between the title and the plot, so long titles never collide with it
+        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0, font=dict(size=11.5, color=MUTED),
+                    bgcolor="rgba(0,0,0,0)"),
+        hoverlabel=dict(bgcolor="white", bordercolor=AXIS, font=dict(family=FONT["family"], color=INK, size=12)),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
     )
-    fig.update_xaxes(showgrid=False, linecolor=GRID, tickfont=dict(color=MUTED))
-    fig.update_yaxes(showgrid=True, gridcolor=GRID, linecolor=GRID, tickfont=dict(color=MUTED), zeroline=False)
+    fig.update_xaxes(showgrid=False, linecolor=AXIS, ticks="", tickfont=dict(color=MUTED),
+                     title_font=dict(color=MUTED, size=12))
+    fig.update_yaxes(showgrid=True, gridcolor=GRID, showline=False, ticks="", tickfont=dict(color=MUTED),
+                     title_font=dict(color=MUTED, size=12), zeroline=False)
     return fig
 
 
@@ -56,7 +62,7 @@ def composition_donut(comp: pd.DataFrame, center_text: str = "") -> go.Figure:
 
 def reserves_vs_tokens(daily: pd.DataFrame) -> go.Figure:
     short = bool((daily["reserves"] < daily["supply"] * 0.9995).any())
-    fill = "rgba(185,28,28,0.10)" if short else "rgba(15,118,110,0.10)"
+    fill = "rgba(197,48,48,0.10)" if short else "rgba(13,122,111,0.10)"
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=daily["day"], y=daily["supply"], name="Tokens outstanding", mode="lines+markers",
                              line=dict(color=TOKENS, width=2, dash="dot"), marker=dict(size=6),
@@ -110,7 +116,7 @@ def loss_breakdown(summary: dict) -> go.Figure:
     ]
     df = pd.DataFrame(items, columns=["Source", "Loss"])
     fig = go.Figure(go.Bar(x=df["Loss"], y=df["Source"], orientation="h",
-                           marker_color=["#7C3AED", "#EA580C", "#0F766E", BAD],
+                           marker_color=["#7A4FD1", "#C77D12", "#2B59C3", BAD],
                            text=[f"${v:,.2f}bn" for v in df["Loss"]], textposition="outside",
                            cliponaxis=False, hovertemplate="%{y}: $%{x:,.3f}bn<extra></extra>"))
     fig = _base(fig, height=260, title="Where the losses came from")
@@ -122,7 +128,7 @@ def loss_breakdown(summary: dict) -> go.Figure:
 def holdings_used(by_holding: pd.DataFrame) -> go.Figure:
     d = by_holding.copy()
     fig = go.Figure()
-    fig.add_trace(go.Bar(y=d["Holding"], x=d["End ($bn)"], name="Left", orientation="h", marker_color="#CBD5E1",
+    fig.add_trace(go.Bar(y=d["Holding"], x=d["End ($bn)"], name="Left", orientation="h", marker_color="#D5DCE6",
                          hovertemplate="%{y}<br>Left $%{x:,.2f}bn<extra></extra>"))
     fig.add_trace(go.Bar(y=d["Holding"], x=d["Sold ($bn)"], name="Sold to pay redemptions", orientation="h",
                          marker_color=ACCENT, hovertemplate="%{y}<br>Sold $%{x:,.2f}bn<extra></extra>"))
@@ -187,9 +193,9 @@ def liquidity_ladder(ladder: pd.DataFrame) -> go.Figure:
 
 def peg_history(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
-    fig.add_hrect(y0=0.995, y1=1.005, fillcolor="rgba(21,128,61,0.07)", line_width=0,
+    fig.add_hrect(y0=0.995, y1=1.005, fillcolor="rgba(19,128,74,0.07)", line_width=0,
                   annotation_text="±50bp", annotation_position="top left", annotation_font_color=MUTED)
-    palette = ["#0F766E", "#2563EB", "#D97706", "#7C3AED", "#DB2777", "#64748B"]
+    palette = [ACCENT, "#2B59C3", "#C77D12", "#7A4FD1", "#C2416B", "#5B6B82"]
     for i, (coin, g) in enumerate(df.groupby("coin")):
         fig.add_trace(go.Scatter(x=g["time"], y=g["price"], name=coin, mode="lines",
                                  line=dict(width=2, color=palette[i % len(palette)]),

@@ -3,15 +3,14 @@
 import pandas as pd
 import streamlit as st
 
-from app_pages.common import current_portfolio, fmt_bn
+from app_pages.common import current_portfolio, fmt_bn, page_header, section
 from pegguard import charts
 from pegguard.analysis import regulatory_check, risk_profile
 from pegguard.pricing import modified_duration
 
-st.markdown('<div class="pg-hero">Reserve Quality</div>', unsafe_allow_html=True)
-st.markdown('<div class="pg-sub">Three questions a treasury team should ask before holding a stablecoin: how '
-            'rate-sensitive are the reserves, how fast can they become cash, and are they the assets regulators '
-            'allow?</div>', unsafe_allow_html=True)
+page_header("Risk diagnostics", "Reserve Quality",
+            "Three questions a treasury team should ask before holding a stablecoin: how rate-sensitive are "
+            "the reserves, how fast can they become cash, and are they the assets regulators allow?")
 
 lines, supply = current_portfolio()
 reserves = sum(l.amount_bn for l in lines)
@@ -33,7 +32,7 @@ with c1:
     st.caption("Assumes orderly markets (no shocks, stress x1). The MAS framework requires par redemption within "
                "5 business days of a request.")
 with c2:
-    st.subheader("Rate risk by holding")
+    section("Rate risk by holding")
     rows = []
     for l in lines:
         kind = l.spec.rate_kind
@@ -45,7 +44,7 @@ with c2:
                  width="stretch", hide_index=True)
 
 st.divider()
-st.subheader("Regulatory eligibility (simplified)")
+section("Reserve eligibility (simplified)", "Regulation")
 r1, r2 = st.columns(2)
 regimes = {
     "GENIUS": ("US GENIUS Act (2025)", "Cash, insured deposits, T-bills of 93 days or less, repo of 7 days or less "
