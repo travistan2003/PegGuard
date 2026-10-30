@@ -1,4 +1,4 @@
-import math
+# Bond pricing checked against hand calculations.
 
 import pytest
 

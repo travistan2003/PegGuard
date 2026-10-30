@@ -11,7 +11,7 @@ dataframeHeaderBackgroundColor = "#F5F7FA"
 showWidgetBorder = true
 baseRadius = "0.6rem"
 buttonRadius = "0.5rem"
-# Falls back to the system font when offline (demo mode).
+# Falls back to the system font when offline.
 font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
 headingFont = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
 headingFontWeights = [700, 650, 600, 600, 600, 600]

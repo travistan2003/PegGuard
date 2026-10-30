@@ -1,129 +1,72 @@
 # PegGuard: Stablecoin Reserve Stress Tester
 
-**IS4228 Information Technology and Financial Services · Technical track · Team Bulge**
-**Category:** Consumer or B2B fintech application (B2B treasury risk tool)
+**Live app: STREAMLIT_APP_URL**
 
-PegGuard answers one question for a company that holds stablecoins as working capital:
+*IS4228 Information Technology and Financial Services · Technical track · Team Bulge*
 
-> *If rates jump, a bank fails or crypto crashes, and holders rush to redeem, can this stablecoin's reserves still
-> pay every token $1, on time?*
+PegGuard helps a company that holds stablecoins as working capital answer one question:
 
-You load a fiat-backed stablecoin's reserve portfolio (real USDT and USDC compositions are bundled), apply day-0
-shocks, start a multi-day redemption run, and the engine plays it out day by day: what gets sold, at what discount,
-whether redemptions are paid on time, and what each remaining token is worth.
+> If rates jump, a bank fails or crypto crashes, and holders rush to redeem, can this stablecoin still pay every
+> token $1, on time? And what does that mean for the coins we hold?
 
-![Stress Lab](docs/screenshots/stress_lab.png)
+Pick a stablecoin, pick a crisis, and PegGuard plays out the run day by day: what the issuer has to sell, at what
+price, whether everyone is paid on time, and what your position is worth at the end.
 
----
+![Stress Lab](docs/screenshots/readme_stress_lab.png)
 
-## Quick start
+## How to use it
+
+Open the live app above. It runs in the browser, with nothing to install.
+
+1. **Stress Lab.** Choose a stablecoin and a crisis, then read the verdict: is there enough backing, are
+   redemptions paid on time, and what happens to your position. The tabs show which assumption matters most and
+   where the peg breaks. You can download a one-page risk memo.
+2. **Treasury Planner.** Enter the coins you hold and your loss limit to get a safe amount for each coin.
+3. **Dashboard** and **Issuer Profile.** Compare coins side by side and check each one's reserves against
+   US, Singapore, EU and Hong Kong rules.
+4. **Validation** and **Methodology.** See how the model performs on real past events, and every formula and
+   source behind it.
+
+Your position and portfolio are set in the sidebar and apply to every page.
+
+## Does it work?
+
+We replayed four real runs using the last public reserve report before each one. The model reaches the same
+outcome every time:
+
+| Event | What happened | PegGuard |
+|---|---|---|
+| USDT, May 2022 | Paid everyone | Pays everyone on time |
+| USDC, SVB weekend, March 2023 | Paid at par once banks reopened | Holds, with a market dip over the weekend |
+| Silicon Valley Bank, March 2023 | Could not pay, closed on day 2 | Cannot pay on day 1 |
+| BUSD, February 2023 | Paid everyone | Pays everyone on time |
+
+## Run it yourself
+
+Needs Python 3.10 or later.
 
 ```bash
-# 1. Python 3.10+ recommended
-python -m venv .venv
-source .venv/bin/activate            # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-
-# 2. (optional, needs internet) refresh live market data so the demo can run fully offline later
-python scripts/refresh_snapshot.py
-
-# 3. Run the app
-streamlit run app.py                 # opens http://localhost:8501
-
-# 4. Run the tests
-pytest -q
+streamlit run app.py
 ```
 
-No API keys are needed. Everything except the Live Monitor section of the Dashboard works with no internet connection.
+To run the tests: `pip install -r requirements-dev.txt`, then `pytest`.
 
-### Command-line version of the core mechanic
+## What's in the repo
 
-```bash
-python scripts/run_scenario.py --list
-python scripts/run_scenario.py --preset svb_style --rate-shock 300 --run 20
-python scripts/run_scenario.py --preset usdt_2026q2 --run 50 --days 5 --crypto-shock -50 --stress 3 --panic 0.3 --export run.csv
-```
-
----
-
-## What it does
-
-| Page | What you get |
+| Folder | Contents |
 |---|---|
-| **Stress Lab** (start here) | Step 1: choose a stablecoin (each portfolio is labelled *Reported*, *Reconstructed* or *Hypothetical*). Step 2: choose a crisis (Calm, Rate shock, Crypto crash, Bank failure, Full panic) and fine-tune it, including when frozen bank cash becomes usable again and how long a redemption may wait (same day to MAS T+5). Step 3: the answer as three questions (enough backing? paid on time? what it means for your position?), key numbers, how the result was derived, charts, the same scenario at fire-sale stress x1/x2/x3/x5 side by side, and CSV exports. **Breaking point** tab: 441 stress runs on a grid of rate shocks (0-500bp) x run sizes (0-100%) showing the exact frontier where the peg fails, plus a portfolio comparison. |
-| **Dashboard** (summary) | One tile per issuer (peg, buffer in bp, 1-day cash, largest run survived, worst value per token, loss on *your* position) with a one-click jump into the Stress Lab, a **Live Monitor** of supply and peg deviation with alerts (DefiLlama, auto-refresh, offline fallback), a sortable **risk ranking**, and the five-crisis **scorecard** (collapsed) with teaching benchmarks clearly labelled. |
-| **Issuer Profile** | Age of the reserve data, buffer and rate sensitivity in bp, duration, a liquidity ladder (cash raisable in 1-20 days) and a simplified GENIUS Act / MAS eligibility check. |
-| **Methodology** | Every formula, assumption, limitation and source. |
+| `app.py`, `app_pages/` | The Streamlit app, one file per page |
+| `pegguard/` | The model: stress engine, bond pricing, analysis, back-tests |
+| `data/` | Reserve portfolios with their sources, and offline market data |
+| `tests/` | Automated tests, run on every push |
+| `scripts/` | Command-line version and a data-refresh script |
+| `docs/` | Project brief |
 
-### The engine in one paragraph
+## Data
 
-**Day 0:** a parallel rate shock reprices bills (zero-coupon) and notes (coupon bonds) using Week 3 bond maths;
-gold/crypto/equities fall by chosen %; secured loans take a credit loss; a bank failure freezes part of the bank cash.
-**Days 1-N:** redemptions arrive on a front-loaded schedule and are paid at $1 through a liquidity waterfall
-(cash → repo → MMF → bills → notes → gold → crypto → other → loans). Each asset can only sell a set share per day and
-pays a fire-sale discount. Unpaid requests queue. Optional panic feedback (Diamond & Dybvig 1983) speeds up the run
-when coverage falls below par. Output: **coverage ratio**, **value per token**, **unmet redemptions**, and a verdict:
-`HOLDS`, `LIQUIDITY STRAIN`, `BELOW PAR` or `BREAKS`.
+Reserve portfolios come from the issuers' published reports: Circle (30 Sep 2026) and Tether (30 Jun 2026). Live
+market data comes from DefiLlama. Each portfolio in the app says where its numbers come from. The full source list
+is on the Methodology page.
 
----
-
-## Repository layout
-
-```
-pegguard/
-├── app.py                     Streamlit entry point (multipage navigation)
-├── app_pages/                 One file per page + shared state/styling (common.py)
-├── pegguard/                  Core library, no UI code
-│   ├── pricing.py             Bond pricing and rate-shock repricing
-│   ├── reserves.py            Asset classes, assumptions, portfolio model
-│   ├── engine.py              Day-by-day stress engine (the core mechanic)
-│   ├── analysis.py            Breaking-point grid, scenario library, regulation check, risk profile
-│   ├── data_sources.py        DefiLlama fetchers with cache + bundled-snapshot fallback
-│   ├── presets.py             Loads data/presets.json
-│   └── charts.py              Plotly figures
-├── data/
-│   ├── presets.json           Reserve portfolios with sources and as-of dates
-│   ├── snapshots/             Offline data bundled with the repo
-│   └── cache/                 Last successful live fetch (git-ignored)
-├── scripts/
-│   ├── run_scenario.py        CLI stress test
-│   └── refresh_snapshot.py    Refresh offline data before a demo
-├── tests/                     pytest suite (pricing, engine, analysis, data parsing)
-└── docs/                      Build brief, demo script, Q&A prep, screenshots
-```
-
-## Deliberate scope decisions
-
-Kept: one core mechanic that works reliably (reserve stress + run simulation), transparent assumptions, offline demo.
-
-Left out on purpose (and why):
-
-* **No token price / AMM model.** We value what the reserves can pay, which is what a treasury team needs. USDC's March 2023 depeg shows why market price can differ.
-* **No accounts, alerts or multi-user features.** Not needed to prove the mechanic.
-* **No on-chain reserve verification.** Fiat reserves are off-chain; attestations are the data source.
-* **One parallel rate shock**, no yield-curve twists, no stochastic simulation: easier to explain and audit.
-
-## Data and sources
-
-* Circle Internet Group Form 10-Q (quarter ended 30 Jun 2026): USDC reserves and the Circle Reserve Fund.
-* Tether Q2 2026 reserves report (BDO Italia attestation), via a stablecoininsider.org summary.
-* CNBC, 11 Mar 2023: USDC breaks peg after Circle reveals $3.3bn SVB exposure.
-* Paxos summary of the GENIUS Act (July 2025); Reed Smith summary of the MAS SCS framework (Aug 2023).
-* DefiLlama stablecoin and price APIs (live data, no key).
-
-Reserve presets are point-in-time and partly assumption-based (maturities, yields). They are clearly labelled in
-`data/presets.json` and in the app. **Educational project, not investment or legal advice.**
-
-## Publishing the repo (for the Canvas submission)
-
-```bash
-cd PegGuard
-git init && git add . && git commit -m "PegGuard: stablecoin reserve stress tester"
-# create an empty repo on GitHub (public, or private and invite the instructor/TA), then:
-git remote add origin https://github.com/<your-account>/pegguard.git
-git branch -M main && git push -u origin main
-```
-
-## Secrets
-
-None are needed. `.env.example` is included for an optional CoinGecko key if you extend the data layer; never commit a real `.env`.
+*Educational project. Not investment or legal advice.*

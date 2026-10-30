@@ -1,12 +1,11 @@
-"""Dashboard: the summary view after the Stress Lab. Coin tiles, the live market, a sortable risk ranking and the
-standard-scenario scorecard."""
+# Dashboard: coin tiles, the live market, a sortable risk ranking and the five-crisis scorecard.
 
 from dataclasses import replace
 
 import pandas as pd
 import streamlit as st
 
-from app_pages.common import (BASIS, PEG_ALERT_BP, basis_badge, fmt_bp, fmt_m, page_header, position_m,
+from app_pages.common import (BASIS, PEG_ALERT_BP, basis_badge, fmt_bn, fmt_bp, fmt_m, page_header, position_m,
                               reference_scenario, request_preset, section, verdict_chip)
 from app_pages.live_monitor import market_table
 from app_pages.live_monitor import render as live_monitor
@@ -19,7 +18,7 @@ REF = reference_scenario()
 
 @st.cache_data(show_spinner="Stress-testing every portfolio...")
 def preset_metrics() -> pd.DataFrame:
-    """One row per bundled portfolio: reserve strength, liquidity and stress results (position-independent)."""
+    # one row per bundled portfolio: reserve strength, liquidity and stress results (not position-dependent)
     rows = []
     for info in preset_info():
         p = load_preset(info["id"])
@@ -51,22 +50,25 @@ def preset_metrics() -> pd.DataFrame:
 metrics = preset_metrics()
 pos = position_m()
 live = bool(st.session_state.get("live_data", False))
-market, mmeta = market_table(live)
+market, _ = market_table(live)
 issuers = metrics[metrics["group"] == "issuer"]
+# latest real report date (hypothetical portfolios have no date)
+report_dates = pd.to_datetime(issuers["as_of"], errors="coerce").dropna()
+latest = report_dates.max().strftime("%d %b %Y") if len(report_dates) else "n/a"
 
 page_header(
     "Dashboard",
     "Stablecoin risk dashboard",
     f"The summary after the Stress Lab: peg, reserve strength and stress results for the stablecoins you hold, "
-    f"side by side. Reserve data as of {issuers['as_of'].max()}; every dollar figure is for your {fmt_m(pos, 1)} "
+    f"side by side. Latest reserve report: {latest}. Every dollar figure is for your {fmt_m(pos, 1)} "
     "position (set it in the sidebar).")
 
 
-# ---------------------------------------------------------------- coin tiles -----------
+# coin tiles
 
 def _peg_chip(gap: float) -> str:
     if pd.isna(gap):
-        return '<span class="pg-note">live price off</span>'
+        return ""  # no live price: leave the space for the coin's name and date
     color = "#13804A" if abs(gap) <= 10 else ("#B7791F" if abs(gap) <= PEG_ALERT_BP else "#C53030")
     return (f'<span class="pg-chip" style="color:{color}; background:{color}14; border:1px solid {color}33">'
             f'{gap:+.0f}bp</span>')
@@ -82,25 +84,28 @@ def coin_tile(row: pd.Series) -> str:
     gap = m["peg_gap_bps"].iloc[0] if len(m) else float("nan")
     supply = m["supply_usd"].iloc[0] / 1e9 if len(m) else row["supply_bn"]
     chg = m["chg_7d_pct"].iloc[0] if len(m) else float("nan")
-    supply_txt = f"${supply:,.1f}bn" + ("" if pd.isna(chg) else f" <span class='pg-note'>{chg:+.1f}% 7d</span>")
+    supply_txt = fmt_bn(supply, 1).replace("$", "&#36;") + (
+        "" if pd.isna(chg) else f" <span class='pg-note'>{chg:+.1f}% 7d</span>")
     haircut = max(0.0, 1 - row["worst_value"])
-    price_txt = "—" if pd.isna(price) else f"&#36;{price:.4f}"
+    price_txt = "" if pd.isna(price) else f"&#36;{price:.4f}"
+    if row["basis"] == "hypothetical":
+        as_of = "illustrative reserves"
+    else:
+        as_of = "as of " + pd.to_datetime(row["as_of"]).strftime("%d %b %Y")
     return (
         f'<div class="pg-coin"><div class="top"><div><div class="sym">{row["symbol"]}</div>'
-        f'<div class="nm">{row["name"]}</div></div>'
+        f'<div class="nm">{basis_badge(row["basis"])}</div><div class="nm">{as_of}</div></div>'
         f'<div><div class="px">{price_txt}</div><div style="text-align:right">{_peg_chip(gap)}</div></div></div>'
         f'<div class="grid">'
         + _stat("Supply", supply_txt)
         + _stat("Buffer", fmt_bp(row["buffer"]), "good" if row["buffer"] >= 0 else "bad")
-        + _stat("Cash 1 day", f"{row['cash_1d']:.0%}")
         + _stat("Survives run", f"{row['largest_run']:.0f}%")
-        + _stat("Worst value", f"&#36;{row['worst_value']:.3f}", "bad" if haircut > 1e-4 else "good")
         + _stat("Your loss", fmt_m(pos * haircut).replace("$", "&#36;"), "bad" if haircut > 1e-4 else "")
         + "</div></div>"
     )
 
 
-cols = st.columns([1.25] * len(issuers) + [0.9])
+cols = st.columns(len(issuers) + 1)
 for col, (_, row) in zip(cols, issuers.iterrows()):
     col.markdown(coin_tile(row), unsafe_allow_html=True)
     if col.button(f"Stress-test {row['symbol']}", key=f"stress_{row['id']}", icon=":material/science:",
@@ -112,22 +117,21 @@ with cols[-1]:
     worst = issuers.loc[issuers["worst_value"].idxmin()]
     st.markdown(
         '<div class="pg-coin"><div class="top"><div><div class="sym">Market</div>'
-        '<div class="nm">USD stablecoins tracked</div></div></div><div class="grid" '
-        'style="grid-template-columns: repeat(2, 1fr)">'
+        '<div class="nm">USD stablecoins tracked</div></div></div><div class="grid">'
         + _stat("Total supply", f"&#36;{total:,.1f}bn")
         + _stat("Coins", f"{len(market)}")
         + _stat("Weakest", worst["symbol"], "bad" if worst["worst_value"] < 0.9999 else "")
-        + _stat("Worst value", f"&#36;{worst['worst_value']:.3f}")
+        + _stat("Worst", f"&#36;{worst['worst_value']:.3f}")
         + "</div></div>", unsafe_allow_html=True)
 st.caption(f"Buffer: reserves above tokens outstanding. Survives run: largest share of tokens that can redeem over {REF.horizon_days} days at a "
            f"+{REF.rate_shock_bp:.0f}bp rate shock (fire-sale stress x{REF.stress_multiplier:.0f}) and still be paid "
-           "on time at par. Worst value: lowest reserves per token across the five standard scenarios below. "
-           "Your loss: your position marked at that worst value.")
+           "on time at par. Your loss: your position marked at the lowest reserves per token across the five "
+           "standard scenarios below.")
 
 st.divider()
 live_monitor()
 
-# ---------------------------------------------------------------- risk ranking ---------
+# risk ranking
 st.divider()
 section("Risk ranking", "Compare")
 st.caption("Click a column header to sort. Issuers first, then benchmark portfolios for context. Data: Reported = "
@@ -171,7 +175,7 @@ st.dataframe(
     },
 )
 
-# ---------------------------------------------------------------- scorecard ------------
+# scorecard
 st.divider()
 section("Every portfolio under the same five crises", "Scorecard")
 st.caption("Same shocks, same assumptions, so portfolios can be compared like for like. Walk through one coin "
@@ -182,7 +186,7 @@ with st.expander("Show the scorecard", icon=":material/table_view:"):
         html.append(f"<th>{sc.name}</th>")
     html.append("</tr>")
     ncol = len(STANDARD_SCENARIOS) + 1
-    groups = (("issuer", "Issuers · from reported reserves"),
+    groups = (("issuer", "Issuers · reported reserves, except where marked"),
               ("benchmark", "Teaching benchmarks · hypothetical or reconstructed, not actual reserves"))
     for group, label in groups:
         html.append(f'<tr class="grp"><td colspan="{ncol}">{label}</td></tr>')

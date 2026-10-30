@@ -1,4 +1,4 @@
-"""PegGuard: stablecoin reserve stress testing."""
+# PegGuard: stablecoin reserve stress testing.
 
 from .engine import Scenario, StressResult, run_stress, redemption_capacity
 from .reserves import ASSET_CLASSES, ReserveLine, Portfolio

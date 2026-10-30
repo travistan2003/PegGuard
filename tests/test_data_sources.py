@@ -1,4 +1,6 @@
-from pegguard.data_sources import load_stablecoins, load_svb_episode, parse_price_chart, parse_stablecoins
+# Parsing of DefiLlama responses and the offline fallbacks.
+
+from pegguard.data_sources import load_stablecoins, parse_price_chart, parse_stablecoins
 
 SAMPLE = {"peggedAssets": [
     {"name": "Tether", "symbol": "USDT", "gecko_id": "tether", "pegType": "peggedUSD", "pegMechanism": "fiat-backed",
@@ -24,5 +26,3 @@ def test_parse_price_chart():
 def test_offline_fallbacks_always_return_data():
     df, meta = load_stablecoins(live=False)
     assert not df.empty and meta["mode"] in ("cache", "snapshot")
-    svb, meta2 = load_svb_episode()
-    assert svb["price"].min() < 0.9

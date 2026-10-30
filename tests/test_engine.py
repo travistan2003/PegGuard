@@ -1,3 +1,5 @@
+# Core engine behaviour: backing, liquidity, waterfall, rate shocks, frozen cash, deadlines, positions.
+
 from dataclasses import replace
 
 import pytest

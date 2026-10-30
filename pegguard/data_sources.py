@@ -1,15 +1,5 @@
-"""Market data for the Live Monitor, with an offline fallback so the demo never depends on Wi-Fi.
-
-Order of preference for every dataset:
-    1. live fetch from a free public API (no key needed)
-    2. the last successful fetch, cached in data/cache/
-    3. the snapshot bundled in data/snapshots/ (refresh it with scripts/refresh_snapshot.py)
-
-APIs
-----
-* DefiLlama stablecoins: https://stablecoins.llama.fi/stablecoins?includePrices=true
-* DefiLlama coin prices:  https://coins.llama.fi/chart/coingecko:<id>?start=<unix>&span=<n>&period=1d
-"""
+# Market data for the Live Monitor, with an offline fallback so the app works without internet.
+# Each dataset tries: live DefiLlama API (no key) -> last good fetch in data/cache/ -> snapshot in data/snapshots/.
 
 from __future__ import annotations
 
@@ -63,12 +53,10 @@ def _read_json(path: Path) -> dict | None:
     return None
 
 
-# --------------------------------------------------------------------------------------
 # Stablecoin supply table
-# --------------------------------------------------------------------------------------
 
 def _num(x) -> float | None:
-    """DefiLlama nests amounts as {"peggedUSD": 123.4}; accept either shape."""
+    # DefiLlama nests amounts as {"peggedUSD": 123.4}; accept either shape.
     if isinstance(x, dict):
         x = x.get("peggedUSD")
     try:
@@ -106,7 +94,7 @@ def parse_stablecoins(payload: dict) -> pd.DataFrame:
 
 
 def load_stablecoins(live: bool = True) -> tuple[pd.DataFrame, dict]:
-    """Return (table, meta). meta = {"mode": live|cache|snapshot, "as_of": str, "note": str}."""
+    # Return (table, meta). meta = {"mode": live|cache|snapshot, "as_of": str, "note": str}.
     if live:
         try:
             payload = _get_json(STABLECOINS_URL)
@@ -139,9 +127,7 @@ def load_stablecoins(live: bool = True) -> tuple[pd.DataFrame, dict]:
     return df, {"mode": "snapshot", "as_of": snap.get("_fetched_at", "unknown"), "note": note}
 
 
-# --------------------------------------------------------------------------------------
 # Price history
-# --------------------------------------------------------------------------------------
 
 def parse_price_chart(payload: dict) -> pd.DataFrame:
     rows = []
@@ -180,26 +166,3 @@ def load_price_history(days: int = 90, live: bool = True,
     return pd.DataFrame(columns=["time", "coin", "price"]), {
         "mode": "none", "as_of": "", "note": "No price history available offline yet. Run scripts/refresh_snapshot.py "
                                             "once while online to cache it." + (f" Live fetch failed: {err}" if err else "")}
-
-
-def load_svb_episode() -> tuple[pd.DataFrame, dict]:
-    """USDC price around the March 2023 SVB weekend.
-
-    Uses the exact hourly series if scripts/refresh_snapshot.py has downloaded it, otherwise an
-    approximate path reconstructed from news reports (clearly labelled in the app).
-    """
-    exact = SNAPSHOT_DIR / "usdc_svb_2023_hourly.csv"
-    if exact.exists():
-        df = pd.read_csv(exact, parse_dates=["time"])
-        return df, {"mode": "exact", "note": "Hourly USDC prices from DefiLlama (CoinGecko source)"}
-    approx = pd.read_csv(SNAPSHOT_DIR / "usdc_svb_2023_approx.csv", parse_dates=["time"])
-    return approx, {"mode": "approx", "note": "Approximate path reconstructed from news reports. Run "
-                                              "scripts/refresh_snapshot.py while online for exact hourly prices."}
-
-
-def fetch_svb_hourly() -> pd.DataFrame:
-    """Download hourly USDC prices for 9-17 March 2023 (used by the refresh script)."""
-    start = int(datetime(2023, 3, 9, tzinfo=timezone.utc).timestamp())
-    url = PRICE_CHART_URL.format(coins="coingecko:usd-coin") + f"?start={start}&span=200&period=1h&searchWidth=600"
-    df = parse_price_chart(_get_json(url, timeout=15))
-    return df[["time", "price"]] if not df.empty else df

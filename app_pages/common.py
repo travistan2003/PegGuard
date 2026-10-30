@@ -1,8 +1,11 @@
-"""Shared state, sidebar, styling and formatting for every page."""
+# Shared state, sidebar, styling and formatting for every page.
 
 from __future__ import annotations
 
+import html
+import re
 import sys
+from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
@@ -15,8 +18,8 @@ if str(ROOT) not in sys.path:
 from pegguard.analysis import STANDARD_SCENARIOS  # noqa: E402
 from pegguard.charts import VERDICT_COLORS  # noqa: E402
 from pegguard.engine import Scenario  # noqa: E402
-from pegguard.presets import load_preset, preset_names  # noqa: E402
-from pegguard.reserves import ASSET_CLASSES, frame_to_lines, lines_to_frame  # noqa: E402
+from pegguard.presets import load_preset, preset_ids, preset_names, redemption_terms  # noqa: E402
+from pegguard.reserves import ASSET_CLASSES, EDITOR_COLUMNS, frame_to_lines, lines_to_frame  # noqa: E402
 
 DEFAULT_PRESET = "usdt_2026q2"
 DEFAULT_POSITION_M = 30.0  # $m of the token held; drives every P&L figure in the app
@@ -31,6 +34,20 @@ SC_DEFAULTS = {
     "sc_freeze": 0.0, "sc_recovery": 100.0, "sc_release": 0, "sc_stress": 2.0,
     "sc_gold": 0.0, "sc_crypto": 0.0, "sc_risk": 0.0, "sc_loan": 0.0, "sc_panic": 0.0,
     "sc_wait": 0,
+    # advanced: market structure, timing and behaviour
+    "sc_twist": 0.0, "sc_closed": 0, "sc_failed_bank": "", "sc_impact": 1.0, "sc_spill": 0.5,
+    "sc_signal": "coverage", "sc_lag": 0, "sc_mkt_return": 20.0, "sc_mkt_recovery": 0.0, "sc_fear": 0.0,
+}
+# Slider key -> Scenario field (one table drives loading a crisis, reading the sliders and share links)
+SC_FIELDS = {
+    "sc_rate": "rate_shock_bp", "sc_run": "redemption_pct", "sc_days": "horizon_days", "sc_front": "front_load",
+    "sc_freeze": "bank_freeze_pct", "sc_recovery": "frozen_recovery_pct", "sc_release": "frozen_release_day",
+    "sc_stress": "stress_multiplier", "sc_gold": "gold_shock_pct", "sc_crypto": "crypto_shock_pct",
+    "sc_risk": "risk_shock_pct", "sc_loan": "loan_loss_pct", "sc_panic": "panic_sensitivity",
+    "sc_wait": "max_wait_days", "sc_twist": "curve_twist_bp", "sc_closed": "closed_days",
+    "sc_failed_bank": "failed_bank", "sc_impact": "price_impact", "sc_spill": "spillover",
+    "sc_signal": "panic_signal", "sc_lag": "panic_lag_days", "sc_mkt_return": "market_required_return_pct",
+    "sc_mkt_recovery": "market_frozen_recovery_pct", "sc_fear": "fear_premium_bp",
 }
 # The redemption deadline is a policy, not part of a crisis: loading a crisis leaves it alone.
 WAIT_OPTIONS = {0: "Same day", 1: "T+1", 2: "T+2", 3: "T+3", 5: "T+5 (MAS)"}
@@ -43,154 +60,10 @@ BASIS_HELP = {
     "hypothetical": "Made up for teaching. It does not describe any real issuer's reserves.",
 }
 
-CSS = """
-<style>
-  :root {--pg-ink:#0B1324; --pg-muted:#5B6B82; --pg-line:#E3E8EF; --pg-card:#FFFFFF; --pg-accent:#0D7A6F;
-         --pg-shadow: 0 1px 2px rgba(11,19,36,.04), 0 1px 3px rgba(11,19,36,.06);}
-  .block-container {padding-top: 2.4rem; padding-bottom: 4rem; max-width: 1280px;}
-  header[data-testid="stHeader"] {background: transparent;}
-  h1, h2, h3, h4 {letter-spacing: -0.015em;}
-  [data-testid="stMarkdownContainer"] h2, [data-testid="stHeadingWithActionElements"] h2 {margin-top: .4rem;}
-  hr {margin: 1.6rem 0 !important; border-color: var(--pg-line) !important;}
-
-  /* page header */
-  .pg-eyebrow {font-size: .72rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
-               color: var(--pg-accent); margin-bottom: .35rem;}
-  .pg-hero {font-size: 2.05rem; font-weight: 700; line-height: 1.18; margin: 0 0 .5rem 0; color: var(--pg-ink);
-            letter-spacing: -0.025em;}
-  .pg-sub {font-size: 1.02rem; line-height: 1.55; color: var(--pg-muted); max-width: 820px; margin-bottom: 1.6rem;}
-  .pg-head {padding-bottom: .4rem; margin-bottom: 1.2rem; border-bottom: 1px solid var(--pg-line);}
-
-  /* section labels */
-  .pg-section {display:flex; align-items:baseline; gap:.6rem; margin: .2rem 0 .2rem 0;}
-  .pg-section .t {font-size: 1.15rem; font-weight: 650; color: var(--pg-ink); letter-spacing: -0.01em;}
-  .pg-section .n {font-size: .72rem; font-weight: 600; color: var(--pg-muted); letter-spacing: .1em;
-                  text-transform: uppercase;}
-
-  /* verdicts */
-  .pg-banner {display:flex; align-items:center; gap:16px; background: var(--pg-card); border: 1px solid var(--pg-line);
-              border-left: 5px solid; border-radius: 12px; padding: 16px 20px; margin: 4px 0 18px 0;
-              box-shadow: var(--pg-shadow);}
-  .pg-banner .v {font-size: 1.05rem; font-weight: 700; letter-spacing: .06em; white-space: nowrap;}
-  .pg-banner .h {font-size: .98rem; color: var(--pg-ink); line-height: 1.45;}
-  .pg-banner .lbl {font-size: .68rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
-                   color: var(--pg-muted);}
-  .pg-chip {display:inline-flex; align-items:center; gap:6px; padding: 3px 10px; border-radius: 999px;
-            font-size: .72rem; font-weight: 650; letter-spacing: .04em; white-space: nowrap;}
-  .pg-chip::before {content:""; width:6px; height:6px; border-radius:50%; background: currentColor;}
-
-  /* cards */
-  .pg-note {font-size: .85rem; color: var(--pg-muted); line-height: 1.5;}
-  .pg-card {border: 1px solid var(--pg-line); border-radius: 12px; padding: 18px 20px; background: var(--pg-card);
-            height: 100%; box-shadow: var(--pg-shadow);}
-  .pg-card .k {font-size: .72rem; font-weight: 700; letter-spacing: .1em; color: var(--pg-accent);}
-  .pg-card .t {font-size: 1rem; font-weight: 650; color: var(--pg-ink); margin: 4px 0 6px 0;}
-
-  /* scorecard table */
-  .pg-table {width:100%; border-collapse:separate; border-spacing:0; font-size:.88rem; background: var(--pg-card);
-             border: 1px solid var(--pg-line); border-radius: 12px; overflow: hidden; box-shadow: var(--pg-shadow);}
-  .pg-table th {text-align:center; padding:12px 10px; background:#F8FAFC; color: var(--pg-muted); font-weight:600;
-                font-size:.76rem; line-height:1.35; border-bottom:1px solid var(--pg-line);}
-  .pg-table th:first-child, .pg-table td:first-child {text-align:left; padding-left:18px;}
-  .pg-table td {text-align:center; padding:12px 10px; border-bottom:1px solid #F0F3F7; vertical-align:middle;}
-  .pg-table tr:last-child td {border-bottom:none;}
-  .pg-table tr:hover td {background:#FAFBFD;}
-  .pg-table td .val {font-size:.76rem; color: var(--pg-muted); margin-top:4px; font-variant-numeric: tabular-nums;}
-  .pg-table td.name {font-weight:600; color: var(--pg-ink);}
-
-  .pg-table tr.grp td {background:#F8FAFC; font-size:.7rem; font-weight:700; letter-spacing:.1em;
-                       text-transform:uppercase; color: var(--pg-muted); padding:8px 18px; text-align:left;}
-  .pg-table tr.bench td.name {color: var(--pg-muted); font-weight:500;}
-
-  /* data basis badge */
-  .pg-basis {display:inline-block; padding: 1px 7px; border-radius: 6px; font-size: .64rem; font-weight: 700;
-             letter-spacing: .06em; text-transform: uppercase; vertical-align: middle; margin-left: 6px;
-             border: 1px solid;}
-  .pg-basis.reported {color:#0D7A6F; border-color:#0D7A6F44; background:#0D7A6F0F;}
-  .pg-basis.reconstructed {color:#B7791F; border-color:#B7791F44; background:#B7791F0F;}
-  .pg-basis.hypothetical {color:#5B6B82; border-color:#5B6B8244; background:#5B6B820F;}
-
-  /* three-question answer cards */
-  .pg-qs {display:grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 4px 0 18px 0;}
-  .pg-q {border: 1px solid var(--pg-line); border-top: 4px solid; border-radius: 12px; padding: 14px 18px;
-         background: var(--pg-card); box-shadow: var(--pg-shadow);}
-  .pg-q .n {font-size: .68rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
-            color: var(--pg-muted);}
-  .pg-q .t {font-size: .98rem; font-weight: 650; color: var(--pg-ink); margin: 2px 0 6px 0;}
-  .pg-q .a {font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums;}
-  .pg-q .d {font-size: .84rem; color: var(--pg-muted); line-height: 1.5; margin-top: 4px;}
-  @media (max-width: 900px) {.pg-qs {grid-template-columns: 1fr;}}
-
-  /* sensitivity table: highlight the user's own level */
-  .pg-table tr.cur td {background:#F1F8F7;}
-  .pg-table tr.cur td.name {color: var(--pg-accent);}
-
-  /* market status line */
-  .pg-status {display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; font-size:.85rem; color: var(--pg-muted);
-              margin: 2px 0 2px 0;}
-  .pg-status b {color: var(--pg-ink);}
-  .pg-status .dot {width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:-8px;}
-
-  /* coin tiles */
-  .pg-coin {border: 1px solid var(--pg-line); border-radius: 12px; padding: 16px 18px; background: var(--pg-card);
-            box-shadow: var(--pg-shadow); height: 100%;}
-  .pg-coin .top {display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
-  .pg-coin .sym {font-size: 1.3rem; font-weight: 700; color: var(--pg-ink); letter-spacing: -0.01em;}
-  .pg-coin .nm {font-size: .78rem; color: var(--pg-muted);}
-  .pg-coin .px {font-size: 1.3rem; font-weight: 650; color: var(--pg-ink); text-align:right;
-                font-variant-numeric: tabular-nums;}
-  .pg-coin .grid {display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px 14px; margin-top: 14px;
-                  padding-top: 12px; border-top: 1px solid #F0F3F7;}
-  .pg-coin .grid .l {font-size: .68rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
-                     color: var(--pg-muted);}
-  .pg-coin .grid .v {font-size: 1rem; font-weight: 650; color: var(--pg-ink); font-variant-numeric: tabular-nums;}
-  .pg-coin .grid .v.bad {color: #C53030;} .pg-coin .grid .v.good {color: #13804A;}
-
-  /* position panel */
-  .pg-pos {border: 1px solid var(--pg-line); border-radius: 12px; padding: 14px 18px; background: #F8FBFB;
-           border-left: 4px solid var(--pg-accent); margin: 4px 0 16px 0;}
-  .pg-pos .lbl {font-size: .68rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
-                color: var(--pg-accent); margin-bottom: 6px;}
-  .pg-pos .grid {display:grid; grid-template-columns: repeat(4, 1fr); gap: 10px 18px;}
-  .pg-pos .l {font-size: .74rem; color: var(--pg-muted);}
-  .pg-pos .v {font-size: 1.15rem; font-weight: 650; color: var(--pg-ink); font-variant-numeric: tabular-nums;}
-  .pg-pos .s {font-size: .78rem; color: var(--pg-muted);}
-
-  /* metrics */
-  div[data-testid="stMetric"] {background: var(--pg-card); border: 1px solid var(--pg-line); border-radius: 12px;
-                               padding: 14px 16px; box-shadow: var(--pg-shadow);}
-  div[data-testid="stMetricLabel"] p {font-size: .74rem; font-weight: 600; color: var(--pg-muted);
-                                      text-transform: uppercase; letter-spacing: .06em;}
-  div[data-testid="stMetricValue"] {font-variant-numeric: tabular-nums;}
-
-  /* charts, tables, expanders sit on white cards */
-  div[data-testid="stPlotlyChart"] {background: var(--pg-card); border: 1px solid var(--pg-line); border-radius: 12px;
-                                    padding: 8px 10px 4px 10px; box-shadow: var(--pg-shadow);}
-  div[data-testid="stExpander"] details {background: var(--pg-card); border-color: var(--pg-line);}
-
-  /* tabs */
-  div[data-baseweb="tab-list"] {gap: 4px; border-bottom: 1px solid var(--pg-line);}
-  button[data-baseweb="tab"] {padding: 10px 18px; font-weight: 600;}
-  button[data-baseweb="tab"] p {font-size: .95rem;}
-
-  /* sidebar */
-  section[data-testid="stSidebar"] .pg-tag {font-size: .7rem; font-weight: 600; letter-spacing: .12em;
-                                            text-transform: uppercase; color: #6F849C; margin: .2rem 0 .1rem 0;}
-  section[data-testid="stSidebar"] .pg-side-card {border: 1px solid #1E3550; background: #10223A; border-radius: 10px;
-                                                  padding: 12px 14px; margin-top: 4px;}
-  section[data-testid="stSidebar"] .pg-side-card .row {display:flex; justify-content:space-between; align-items:baseline;
-                                                       padding: 3px 0;}
-  section[data-testid="stSidebar"] .pg-side-card .l {font-size: .78rem; color: #8FA3BA;}
-  section[data-testid="stSidebar"] .pg-side-card .r {font-size: .98rem; font-weight: 650; color: #FFFFFF;
-                                                     font-variant-numeric: tabular-nums;}
-  section[data-testid="stSidebar"] .pg-foot {font-size: .72rem; color: #6F849C; line-height: 1.5;}
-</style>
-"""
+CSS_PATH = ROOT / "assets" / "style.css"
 
 
-# --------------------------------------------------------------------------------------
 # State
-# --------------------------------------------------------------------------------------
 
 def _load_into_state(preset_id: str) -> None:
     p = load_preset(preset_id)
@@ -201,11 +74,49 @@ def _load_into_state(preset_id: str) -> None:
                                        "as_of": p.as_of, "basis": p.basis, "edited": False}
 
 
+def _read_share_link() -> None:
+    # Apply a shared scenario from the URL (?coin=...&sc_rate=...) once, on the first load of a session.
+    qp = st.query_params
+    coin = qp.get("coin")
+    if coin in preset_ids():
+        st.session_state.preset_id = coin
+        _load_into_state(coin)
+    for k, default in SC_DEFAULTS.items():
+        if k in qp:
+            try:
+                st.session_state[k] = type(default)(qp[k])
+            except (TypeError, ValueError):
+                pass  # ignore a malformed value rather than failing to load the app
+    if "pos" in qp:
+        try:
+            st.session_state.position_m = max(0.0, float(qp["pos"]))
+        except ValueError:
+            pass
+
+
+def share_query() -> dict:
+    # The current coin, scenario and position as URL query parameters (only values that differ from default).
+    q = {"coin": st.session_state.preset_id}
+    for k, default in SC_DEFAULTS.items():
+        v = st.session_state.get(k, default)
+        if v != default:
+            q[k] = str(v)
+    if position_m() != DEFAULT_POSITION_M:
+        q["pos"] = f"{position_m():g}"
+    return q
+
+
+@lru_cache(maxsize=1)
+def _css() -> str:
+    return "<style>" + CSS_PATH.read_text(encoding="utf-8") + "</style>"
+
+
 def init_state() -> None:
-    st.markdown(CSS, unsafe_allow_html=True)
+    st.markdown(_css(), unsafe_allow_html=True)
     if "preset_id" not in st.session_state:
         st.session_state.preset_id = DEFAULT_PRESET
         _load_into_state(DEFAULT_PRESET)
+        _read_share_link()
     pending = st.session_state.pop("pending_preset", None)
     if pending:  # set by other pages; applied here before the sidebar widget exists
         st.session_state.preset_id = pending
@@ -215,6 +126,8 @@ def init_state() -> None:
         st.session_state[k] = st.session_state.get(k, v)
     st.session_state.setdefault("live_data", False)
     st.session_state.setdefault("position_m", DEFAULT_POSITION_M)
+    st.session_state.setdefault("direct_access", True)
+    st.session_state.setdefault("mc_n", 300)
 
 
 def on_preset_change() -> None:
@@ -222,48 +135,38 @@ def on_preset_change() -> None:
 
 
 def request_preset(preset_id: str) -> None:
-    """Switch portfolio from inside a page (takes effect on the next rerun)."""
+    # Switch portfolio from inside a page (takes effect on the next rerun).
     st.session_state.pending_preset = preset_id
 
 
 def apply_scenario(sc: Scenario) -> None:
-    mapping = {
-        "sc_rate": sc.rate_shock_bp, "sc_run": sc.redemption_pct, "sc_days": sc.horizon_days,
-        "sc_front": sc.front_load, "sc_freeze": sc.bank_freeze_pct, "sc_recovery": sc.frozen_recovery_pct,
-        "sc_release": sc.frozen_release_day, "sc_stress": sc.stress_multiplier, "sc_gold": sc.gold_shock_pct, "sc_crypto": sc.crypto_shock_pct,
-        "sc_risk": sc.risk_shock_pct, "sc_loan": sc.loan_loss_pct, "sc_panic": sc.panic_sensitivity,
-    }
-    for k, v in mapping.items():
-        st.session_state[k] = type(SC_DEFAULTS[k])(v)
+    # Load a crisis into the sliders. The redemption deadline is a policy, so it is left alone.
+    for k, f in SC_FIELDS.items():
+        if k != "sc_wait":
+            st.session_state[k] = type(SC_DEFAULTS[k])(getattr(sc, f))
+
+
+def _scenario_from(values: dict, name: str) -> Scenario:
+    return Scenario(name=name, **{f: type(SC_DEFAULTS[k])(values[k]) for k, f in SC_FIELDS.items()})
 
 
 def current_scenario(name: str = "Your scenario") -> Scenario:
-    s = st.session_state
-    return Scenario(
-        name=name, rate_shock_bp=float(s.sc_rate), redemption_pct=float(s.sc_run), horizon_days=int(s.sc_days),
-        front_load=float(s.sc_front), bank_freeze_pct=float(s.sc_freeze), frozen_recovery_pct=float(s.sc_recovery),
-        frozen_release_day=int(s.sc_release), max_wait_days=int(s.sc_wait), stress_multiplier=float(s.sc_stress), gold_shock_pct=float(s.sc_gold), crypto_shock_pct=float(s.sc_crypto),
-        risk_shock_pct=float(s.sc_risk), loan_loss_pct=float(s.sc_loan), panic_sensitivity=float(s.sc_panic),
-    )
+    return _scenario_from({k: st.session_state.get(k, v) for k, v in SC_DEFAULTS.items()}, name)
 
 
 def reference_scenario(name: str = "Reference") -> Scenario:
-    """The app's default scenario settings (ignores the user's sliders), for like-for-like rankings."""
-    d = SC_DEFAULTS
-    return Scenario(
-        name=name, rate_shock_bp=d["sc_rate"], redemption_pct=d["sc_run"], horizon_days=d["sc_days"],
-        front_load=d["sc_front"], bank_freeze_pct=d["sc_freeze"], frozen_recovery_pct=d["sc_recovery"],
-        frozen_release_day=d["sc_release"], max_wait_days=d["sc_wait"], stress_multiplier=d["sc_stress"], gold_shock_pct=d["sc_gold"], crypto_shock_pct=d["sc_crypto"],
-        risk_shock_pct=d["sc_risk"], loan_loss_pct=d["sc_loan"], panic_sensitivity=d["sc_panic"],
-    )
+    # The app's default scenario settings (ignores the user's sliders), for like-for-like rankings.
+    return _scenario_from(SC_DEFAULTS, name)
 
 
 def matching_crisis() -> str | None:
-    """Name of the standard scenario the sliders currently match (ignoring the deadline), else None."""
+    # Name of the standard scenario the sliders currently match (ignoring the deadline), else None.
     cur = current_scenario().to_dict()
     for sc in STANDARD_SCENARIOS:
         ref = sc.to_dict()
-        if all(abs(float(cur[k]) - float(ref[k])) < 1e-9 for k in ref if k not in ("name", "max_wait_days")):
+        keys = [f for f in SC_FIELDS.values() if f != "max_wait_days"]
+        if all(cur[k] == ref[k] if isinstance(ref[k], str) else abs(float(cur[k]) - float(ref[k])) < 1e-9
+               for k in keys):
             return sc.name
     return None
 
@@ -277,7 +180,7 @@ def basis_badge(basis: str) -> str:
 
 
 def basis_notice(meta: dict) -> None:
-    """Warn that a benchmark portfolio is not a record of real reserves."""
+    # Warn that a benchmark portfolio is not a record of real reserves.
     basis = meta.get("basis", "hypothetical")
     if basis == "hypothetical":
         st.info("**Hypothetical portfolio for teaching.** It shows a mechanism, not any real issuer's reserves, so "
@@ -292,31 +195,58 @@ def position_m() -> float:
     return float(st.session_state.get("position_m", DEFAULT_POSITION_M))
 
 
+def holder_access(preset_id: str | None = None) -> dict:
+    # Redemption terms for the coin, combined with whether the user has a direct account with the issuer.
+    pid = preset_id or st.session_state.preset_id
+    terms = redemption_terms(pid)
+    edited = st.session_state.get("portfolio_meta", {}).get("edited") and pid == st.session_state.preset_id
+    return {**terms, "direct": bool(terms["direct"] and st.session_state.get("direct_access", True)),
+            "note": terms["note"] + (" Terms are for the original coin; you edited its reserves." if edited else "")}
+
+
 def current_portfolio():
     lines = frame_to_lines(st.session_state.reserves_df)
     return lines, float(st.session_state.supply)
 
 
 def portfolio_key() -> tuple:
-    """Hashable fingerprint of the current portfolio for st.cache_data."""
+    # hashable fingerprint of the current portfolio, used as a cache key
     df = st.session_state.reserves_df
     return (tuple(map(tuple, df.astype(str).values.tolist())), round(float(st.session_state.supply), 6))
 
 
-# --------------------------------------------------------------------------------------
+def lines_from_key(pkey: tuple) -> list:
+    # turn a portfolio_key() back into reserve lines (cached functions receive the key, not the lines)
+    df = pd.DataFrame([list(r) for r in pkey[0]], columns=EDITOR_COLUMNS)
+    for col in ["Amount ($bn)", "Maturity (yrs)", "Yield (%)"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    return frame_to_lines(df)
+
+
+def show_issues(issues: list) -> bool:
+    # show validation messages, return True if any of them is an error
+    for level, msg in issues:
+        {"error": st.error, "warning": st.warning}.get(level, st.info)(esc(msg), icon=":material/rule:")
+    return any(level == "error" for level, _ in issues)
+
+
+def changed_count(keys) -> int:
+    # how many of these sliders are away from their default
+    return sum(st.session_state.get(k, SC_DEFAULTS[k]) != SC_DEFAULTS[k] for k in keys)
+
+
 # Sidebar
-# --------------------------------------------------------------------------------------
 
 def sidebar() -> None:
     with st.sidebar:
-        st.markdown('<div class="pg-tag">Workspace</div>', unsafe_allow_html=True)
+        # three groups, each with its own small heading: portfolio, your holding, market data
+        st.markdown('<div class="pg-tag first">Portfolio</div>', unsafe_allow_html=True)
         names = preset_names()
         st.selectbox("Reserve portfolio", options=list(names), format_func=names.get, key="preset_id",
-                     on_change=on_preset_change)
+                     on_change=on_preset_change, label_visibility="collapsed")
         meta = st.session_state.portfolio_meta
         lines, supply = current_portfolio()
         reserves = sum(l.amount_bn for l in lines)
-        backing = f"{reserves / supply:.2%}" if supply else "n/a"
         buffer = fmt_bp(reserves / supply - 1) if supply else "n/a"
         basis = meta.get("basis", "hypothetical")
         if meta.get("edited"):
@@ -331,43 +261,50 @@ def sidebar() -> None:
             f'<div class="pg-side-card">'
             f'<div class="row"><span class="l">Tokens outstanding</span><span class="r">${supply:,.2f}bn</span></div>'
             f'<div class="row"><span class="l">Reserves</span><span class="r">${reserves:,.2f}bn</span></div>'
-            f'<div class="row"><span class="l">Backing ratio</span><span class="r">{backing}</span></div>'
             f'<div class="row"><span class="l">Buffer above par</span><span class="r">{buffer}</span></div>'
             f'<div class="row"><span class="l">{status}</span></div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="pg-tag">Your holding</div>', unsafe_allow_html=True)
         st.number_input("Your position ($m)", min_value=0.0, step=5.0, format="%.1f", key="position_m",
                         help="How much of this stablecoin you hold. Used to turn every stress result into a "
                              "dollar loss and a time to exit.")
-        st.divider()
+        st.toggle("We can redeem directly with the issuer", key="direct_access",
+                  help="Off = you hold through an exchange or broker and can only exit by selling on the market. "
+                       "On = you have an account with the issuer (subject to its minimum and fee).")
+        st.markdown('<div class="pg-tag">Market data</div>', unsafe_allow_html=True)
         st.toggle("Fetch live market data", key="live_data",
-                  help="Off = demo mode: uses cached / bundled data, so nothing depends on Wi-Fi.")
+                  help="Off: uses the last cached fetch or the bundled snapshot, so the app works without "
+                       "internet.")
         st.markdown('<div class="pg-foot">NUS IS4228 · Technical track · Team Bulge<br>'
                     'Educational project, not investment or legal advice.</div>', unsafe_allow_html=True)
 
 
-# --------------------------------------------------------------------------------------
 # Formatting
-# --------------------------------------------------------------------------------------
 
 def esc(text: str) -> str:
-    """Escape dollar signs so Streamlit markdown does not render them as LaTeX maths."""
+    # Escape dollar signs so Streamlit markdown does not render them as LaTeX maths.
     return str(text).replace("$", "\\$")
 
 
 def fmt_bn(x: float, dp: int = 2) -> str:
+    # $bn amount; amounts under $1bn are shown in $m so small coins and small losses stay readable.
     if x is None or pd.isna(x):
         return "n/a"
+    if abs(x) < 5e-7:
+        return "$0"
+    if abs(x) < 1:
+        return f"${x * 1000:,.{max(dp - 1, 1)}f}m"
     return f"${x:,.{dp}f}bn"
 
 
 def fmt_bp(x: float, signed: bool = True) -> str:
-    """A fraction as basis points: 0.0224 -> '+224bp'."""
+    # A fraction as basis points: 0.0224 -> '+224bp'.
     if x is None or pd.isna(x):
         return "n/a"
     return f"{x * 1e4:+,.0f}bp" if signed else f"{x * 1e4:,.0f}bp"
 
 
 def fmt_m(x: float, dp: int = 2) -> str:
-    """$m amount (position sizes)."""
+    # $m amount (position sizes).
     if x is None or pd.isna(x):
         return "n/a"
     return f"${x:,.{dp}f}m"
@@ -389,7 +326,7 @@ def page_header(eyebrow: str, title: str, subtitle: str = "") -> None:
 
 
 def section(title: str, label: str = "") -> None:
-    """Section heading with an optional small uppercase label (e.g. a step number)."""
+    # Section heading with an optional small uppercase label (e.g. a step number).
     lbl = f'<span class="n">{label}</span>' if label else ""
     st.markdown(f'<div class="pg-section">{lbl}<span class="t">{title}</span></div>', unsafe_allow_html=True)
 
@@ -402,6 +339,29 @@ def verdict_banner(summary: dict) -> None:
         f'<div class="h">{summary["headline"]}</div></div>',
         unsafe_allow_html=True,
     )
+
+
+def scenario_chips(sc: Scenario, coin: str) -> None:
+    # one line that says which coin and crisis the results below are for
+    parts = [coin, f"{sc.rate_shock_bp:+.0f}bp rates" + (f" ({sc.curve_twist_bp:+.0f}bp at 10y)" if sc.curve_twist_bp else "")]
+    days = len(sc.daily_requests_pct) or sc.horizon_days
+    parts.append(f"{sc.redemption_pct:.0f}% run over {days} days")
+    parts.append(f"{wait_label(sc.max_wait_days)} deadline")
+    if sc.bank_freeze_pct:
+        where = sc.failed_bank or "all banks"
+        parts.append(f"{sc.bank_freeze_pct:.0f}% bank cash frozen ({where})")
+    for label, v in (("crypto", sc.crypto_shock_pct), ("gold", sc.gold_shock_pct), ("other assets", sc.risk_shock_pct)):
+        if v:
+            parts.append(f"{label} {v:+.0f}%")
+    if sc.loan_loss_pct:
+        parts.append(f"loan loss {sc.loan_loss_pct:.0f}%")
+    if sc.closed_days:
+        parts.append(f"closed {sc.closed_days} day(s)")
+    if sc.panic_sensitivity:
+        parts.append("panic on")
+    parts.append(f"fire-sale x{sc.stress_multiplier:g}")
+    html = '<div class="pg-scn"><span class="k">Scenario</span>' + "".join(f"<span>{p}</span>" for p in parts)
+    st.markdown((html + "</div>").replace("$", "&#36;"), unsafe_allow_html=True)
 
 
 def verdict_chip(v: str) -> str:
@@ -427,8 +387,12 @@ def narrative(summary: dict, sc: Scenario, supply0: float) -> list[str]:
                    f"to {fmt_cov(s['day0_coverage'])}.")
     else:
         out.append(f"**Day 0:** no valuation shock. Coverage starts at {fmt_cov(s['start_coverage'])}.")
-    out.append(f"**The run:** holders asked to redeem {fmt_bn(s['requested'])} over {sc.horizon_days} business days "
+    days = len(sc.daily_requests_pct) or sc.horizon_days
+    out.append(f"**The run:** holders asked to redeem {fmt_bn(s['requested'])} over {days} days "
                f"and {fmt_bn(s['paid'])} was paid at $1.")
+    if s.get("closed_days"):
+        out.append(f"**Window closed:** redemptions could not be paid for the first {s['closed_days']} day(s) (a "
+                   "weekend or bank holiday), so requests piled up and deadlines only started once it reopened.")
     if s["days_simulated"] > sc.horizon_days:
         out.append(f"**After the run:** requests were still queued, so the issuer kept paying until day "
                    f"{s['days_simulated']} (the last deadline, {wait_label(s['max_wait_days'])}).")
@@ -438,8 +402,11 @@ def narrative(summary: dict, sc: Scenario, supply0: float) -> list[str]:
                    + (f"; the other {fmt_bn(s['frozen_writedown'])} is a permanent loss."
                       if s["frozen_writedown"] > 1e-4 else "."))
     if s["fire_sale_loss"] > 1e-4:
-        out.append(f"**Selling in a hurry:** raising that cash cost {fmt_bn(s['fire_sale_loss'], 3)} in fire-sale "
-                   "discounts.")
+        out.append(f"**Selling in a hurry:** raising that cash cost {fmt_bn(s['fire_sale_loss'])} in fire-sale "
+                   "discounts, more per dollar the more was sold in one day.")
+    if s.get("spillover_loss", 0) > 1e-4:
+        out.append(f"**Selling moves the price:** the sales pushed market prices down, marking the holdings that "
+                   f"were not sold down by another {fmt_bn(s['spillover_loss'])}.")
     if s["first_breach_day"] is not None:
         out.append(f"**Too slow:** from day {s['first_breach_day']} the issuer could not turn assets into cash fast "
                    f"enough to pay within the deadline ({wait_label(s['max_wait_days'])}). "
@@ -451,7 +418,20 @@ def narrative(summary: dict, sc: Scenario, supply0: float) -> list[str]:
                    f"each. That gap is why runs speed up (Diamond & Dybvig 1983).")
     elif s["verdict"] == "HOLDS":
         out.append(f"**Result:** reserves never dropped below par (lowest coverage {fmt_cov(s['min_coverage'])}).")
-    return [esc(o) for o in out]
+    mp = s.get("min_market_price")
+    if mp is not None and not pd.isna(mp) and mp < 0.9995:
+        out.append(f"**On the market:** someone who cannot redeem directly would see the token trade as low as "
+                   f"{fmt_token(mp)} (day {s['market_low_day']}): the reserves left behind the queue, valued with "
+                   f"frozen cash at the market's {sc.market_frozen_recovery_pct:.0f}% recovery guess, discounted for "
+                   "the wait.")
+    return out
+
+
+def steps_list(items: list[str]) -> None:
+    # a compact bulleted list; **bold** in the text becomes bold
+    body = "".join("<li>" + re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", html.escape(t, quote=False)) + "</li>"
+                   for t in items)
+    st.markdown(f'<ul class="pg-steps">{body}</ul>'.replace("$", "&#36;"), unsafe_allow_html=True)
 
 
 def scenario_library_options() -> dict[str, Scenario]:
