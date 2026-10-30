@@ -5,6 +5,7 @@ Total: 8:00 hard stop. Q&A follows immediately. Suggested split for 4 speakers (
 ## Before you present (checklist)
 
 - [ ] The night before, while online: `python scripts/refresh_snapshot.py` (fills the Live Monitor on the Dashboard with current data).
+- [ ] The app opens on the Stress Lab. Check the acceptable wait is on **Same day** before you start.
 - [ ] On the demo laptop: `streamlit run app.py`, open http://localhost:8501, **sidebar toggle "Fetch live market data" OFF** (offline demo mode).
 - [ ] Browser zoom 110-125% so the back row can read it. Close other tabs and notifications.
 - [ ] Keep a screen recording of this exact flow on the desktop as a backup.
@@ -26,39 +27,44 @@ Total: 8:00 hard stop. Q&A follows immediately. Suggested split for 4 speakers (
 
 ## 1:30-6:00 · Live demo (Speaker B drives, Speaker C narrates)
 
-**1. Dashboard (45s).** Point at the USDT and USDC tiles.
-> "Mei's firm holds 30 million dollars, set here in the sidebar. Each tile shows the coin's buffer above par, how much
-> can be paid out in a day, the largest run it survives, and what Mei's position is worth in the worst standard
-> scenario."
+The app opens on the **Stress Lab**. The flow is: choose a coin, choose a crisis, read the answer and how it was
+derived, then zoom out to the Dashboard.
 
-Scroll past the **Live Monitor** to the **Scorecard**.
-> "Five portfolios, five identical scenarios. Green holds, orange means reserves fell below a dollar per token, red
-> means it breaks. Notice every coin fails *differently*. That's the point."
+**1. Choose a stablecoin (20s).** Step 1: pick **USDT-style reserves (Q2 2026)**. Point at the **Reported** badge.
+> "This is Tether's reported reserve mix from its Q2 2026 attestation. Mostly T-bills and repo, but about a quarter in
+> gold, bitcoin and secured loans. Mei holds 30 million dollars of it, set in the sidebar."
 
-**2. Stress Lab with the SVB-style portfolio (90s).** Sidebar: pick **SVB-style duration mismatch**.
-> "This portfolio is 100% backed today, but 60% sits in 10-year notes bought at 1.8%."
+**2. Choose a crisis (30s).** Step 2: click **Full panic**. Leave the acceptable wait on **Same day**.
+> "Rates up 150bp, crypto down 40%, and half of all holders try to leave within a week. As reserves fall below a
+> dollar, redemptions speed up: Diamond and Dybvig from Week 9."
 
-Drag **Interest-rate shock to 300bp**, **Run size to 20%**.
-> "Day 0: Week 3 bond maths. A 300bp rise knocks about 6 billion off the notes. Then 20% of holders redeem over five
-> days. The issuer pays them $1 each by selling through a waterfall: cash first, then bills, then notes at a fire-sale
-> discount."
+**3. The answer as three questions (60s).** Step 3, **Your scenario**. Read the three cards left to right.
+> "Is there enough backing? No: reserves fall to about 65 cents per token. Were redemptions paid on time? No: about
+> 35 billion dollars of requests miss a same-day deadline. And for Mei's 30 million? Holding loses about 10.5 million.
+> Redeeming on day 1 gets her a dollar, but only on day 2."
 
-Point at the **Your position** panel and the coverage chart (the plain-English narrative is under **Explain this
-result**).
-> "Everyone who redeems gets a dollar, but the people who stay are now backed by 81 cents. That's the first-mover
-> advantage that makes runs self-fulfilling: Diamond and Dybvig from Week 9."
+**4. How it was derived (40s).** Scroll to **How this result was derived**.
+> "Day 0, the shocks. Then the run: the issuer pays a dollar per token by selling cash first, then bills, then gold
+> and crypto at fire-sale prices. The chart shows what each holding did. Every number here can be traced."
 
-Open **More shocks**, set **Panic feedback 0.3**.
-> "Turn on panic: as coverage falls, redemptions accelerate. Now it breaks."
+**5. Change the rules, compare side by side (50s).** Step 2: set **Acceptable wait** to **T+5 (MAS)**.
+> "Now give the issuer the 5 business days MAS allows. Late payments fall to about 19 billion, but look at backing:
+> paying the queue a dollar each from short reserves pushes the loss onto those who stay. It's now 53 cents."
 
-**3. Breaking point (90s).** Still in the Stress Lab, click the **Breaking point** tab under the scenario.
-> "Every cell here is a full stress run, 441 of them. The black line is the largest run this portfolio survives at
-> each rate shock. On the right, the same comparison across all portfolios at 200bp: the USDC-style reserves survive any
-> run; the SVB-style one survives none."
+Scroll to **Sensitivity**.
+> "And we don't have to remember the last result: the same scenario at fire-sale stress x1, x2, x3 and x5, side by side."
 
-**4. USDT and liquidity (45s).** Sidebar: pick **USDT-style reserves (Q2 2026)**, go to **Issuer Profile**.
-> "USDT is over-collateralised and barely cares about rates. Its weakness is speed: with secured loans and gold, only
-> about half of tokens can be paid in one day, and GENIUS-eligible assets cover about 77% of tokens."
+**6. Breaking point (40s).** Click the **Breaking point** tab.
+> "Every cell is a full stress run, 441 of them. The line is the largest run the reserves survive at each rate shock.
+> On the right, every portfolio at the same shock."
+
+**7. Then the summary (40s).** Click **Next: compare every coin on the summary Dashboard**.
+> "Only now do we zoom out: one tile per coin, the live market, and a sortable risk ranking. The scorecard of five
+> crises is folded away underneath. Benchmarks are labelled Hypothetical or Reconstructed: they're teaching
+> portfolios, not a record of what any coin actually held."
+
+Optional, if time: open **More shocks**, set bank cash frozen 30%, recovery 100% and **Frozen cash usable again on**
+Day 2 vs Never, to show stuck cash versus lost money.
 
 ## 6:00-7:30 · Scope, trade-offs, next steps (Speaker D)
 

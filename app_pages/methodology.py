@@ -33,14 +33,20 @@ st.markdown(r"""
 * Government money market funds keep a stable \$1.00 NAV unless the shadow NAV falls below \$0.995 ("breaking the buck").
 
 **Other shocks.** Gold, crypto and other investments fall by the chosen %. Secured loans take a credit loss. A bank
-failure freezes a share of the bank cash; the frozen amount is valued at the assumed recovery rate and cannot be used
-to pay redemptions during the run.
+failure freezes a share of the bank cash; the frozen amount is valued at the assumed recovery rate. Until its
+**release day** it cannot be used to pay redemptions (stuck). From that day the recovered share is ordinary cash again,
+while the unrecovered share stays a permanent loss. This separates cash that is only temporarily stuck from money
+that is gone.
 """)
 
 section("Days 1 to N: the run", "02")
 st.markdown(r"""
 Base redemption requests follow a front-loaded schedule: day $d$ gets weight $\propto (1-f)^{d-1}$, scaled so the run
-adds up to the chosen % of tokens. Requests not paid on a day are carried over.
+adds up to the chosen % of tokens. Requests not paid on a day are carried over and paid first in, first out.
+
+**Redemption deadline.** Each day's requests must be paid within an acceptable wait (same day, T+1 ... T+5, the MAS
+standard). A request still waiting when its deadline passes counts as **late**. If requests are still queued when the
+run ends, the engine keeps paying (with no new requests) until the last deadline has passed.
 
 The issuer pays **\$1 per token** by raising cash through a **liquidity waterfall**, cheapest and fastest first:
 cash, repo, money market fund, T-bills (shortest first), notes, gold, crypto, other investments, loans.
@@ -57,11 +63,16 @@ section("Outputs", "03")
 st.markdown(r"""
 * **Coverage** = reserves (marked to market, frozen cash at recovery value) ÷ tokens outstanding, every day.
 * **Value per token** = min(1, coverage): what a token is worth if the issuer were wound down at that point.
-* **Verdict:** **HOLDS** (paid on time, coverage ≥ 1) · **LIQUIDITY STRAIN** (solvent, but some redemptions are late)
+* **Verdict:** **HOLDS** (paid within the deadline, coverage ≥ 1) · **LIQUIDITY STRAIN** (solvent, but some
+  redemptions miss the deadline)
   · **BELOW PAR** (paid, but coverage < 1) · **BREAKS** (both).
 * **Your position.** *If you hold:* position × worst value per token during the run. *If you redeem on day 1:*
   requests are paid first in, first out, so a day-1 request is paid in full on the first day that cumulative payments
   reach the day-1 requests. Your own request is assumed small next to the run.
+* **Three questions.** The Stress Lab answers: is there enough backing (coverage stays ≥ 1)? Were redemptions paid
+  within the deadline? What does it mean for your position?
+* **Sensitivity.** The same scenario is re-run at fire-sale stress ×1, ×2, ×3 and ×5 (plus your own setting) and shown
+  side by side.
 * **Breaking point** (a Stress Lab tab) re-runs the engine on a 21 × 21 grid of rate shocks (0-500bp) and run sizes (0-100%).
 """)
 
@@ -84,6 +95,9 @@ st.markdown("""
 * **No interest income, fees or issuer capital injections** during the run (all small over days, or discretionary).
 * **One parallel rate shock**, no yield-curve twists; no correlation model between shocks. Users choose the combination.
 * **Reserve data** come from issuer reports (quarterly / monthly), so they are point-in-time. Presets show the as-of date.
+* **Benchmarks are not history.** Each portfolio is labelled *Reported* (built from the issuer's own report),
+  *Reconstructed* (headline figures are public, the split is our estimate) or *Hypothetical* (made up for teaching).
+  Results for the last two illustrate a mechanism; they are not a record of what any coin actually held.
 """)
 
 section("Sources", "06")

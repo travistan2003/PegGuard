@@ -27,9 +27,9 @@ def preset_names() -> dict[str, str]:
 
 
 def preset_info() -> list[dict]:
-    """Metadata for every preset (no reserve lines): id, name, group ('issuer' or 'benchmark'), symbol, as_of."""
+    """Metadata for every preset (no reserve lines): id, name, group ('issuer' or 'benchmark'), symbol, as_of, basis."""
     return [{"id": p["id"], "name": p["name"], "group": p.get("group", "benchmark"), "symbol": p.get("symbol"),
-             "as_of": p.get("as_of", "")} for p in _raw()]
+             "as_of": p.get("as_of", ""), "basis": p.get("basis", "hypothetical")} for p in _raw()]
 
 
 def load_preset(preset_id: str) -> Portfolio:
@@ -42,6 +42,7 @@ def load_preset(preset_id: str) -> Portfolio:
                 description=p.get("description", ""),
                 source=p.get("source", ""),
                 as_of=p.get("as_of", ""),
+                basis=p.get("basis", "hypothetical"),
             )
     raise KeyError(f"Unknown preset: {preset_id}")
 

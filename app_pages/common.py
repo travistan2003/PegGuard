@@ -28,8 +28,19 @@ SUPPLY_ALERT_PCT = -5.0  # supply falling this much in 7 days is flagged
 # Scenario widgets: session key -> default
 SC_DEFAULTS = {
     "sc_rate": 200.0, "sc_run": 30.0, "sc_days": 5, "sc_front": 0.35,
-    "sc_freeze": 0.0, "sc_recovery": 100.0, "sc_stress": 2.0,
+    "sc_freeze": 0.0, "sc_recovery": 100.0, "sc_release": 0, "sc_stress": 2.0,
     "sc_gold": 0.0, "sc_crypto": 0.0, "sc_risk": 0.0, "sc_loan": 0.0, "sc_panic": 0.0,
+    "sc_wait": 0,
+}
+# The redemption deadline is a policy, not part of a crisis: loading a crisis leaves it alone.
+WAIT_OPTIONS = {0: "Same day", 1: "T+1", 2: "T+2", 3: "T+3", 5: "T+5 (MAS)"}
+
+# Data basis of each bundled portfolio, so benchmarks are not mistaken for real reserves
+BASIS = {"reported": "Reported", "reconstructed": "Reconstructed", "hypothetical": "Hypothetical"}
+BASIS_HELP = {
+    "reported": "Built from the issuer's own published reserve report.",
+    "reconstructed": "Approximate rebuild of a past portfolio: headline figures are public, the split is our estimate.",
+    "hypothetical": "Made up for teaching. It does not describe any real issuer's reserves.",
 }
 
 CSS = """
@@ -90,6 +101,29 @@ CSS = """
   .pg-table tr.grp td {background:#F8FAFC; font-size:.7rem; font-weight:700; letter-spacing:.1em;
                        text-transform:uppercase; color: var(--pg-muted); padding:8px 18px; text-align:left;}
   .pg-table tr.bench td.name {color: var(--pg-muted); font-weight:500;}
+
+  /* data basis badge */
+  .pg-basis {display:inline-block; padding: 1px 7px; border-radius: 6px; font-size: .64rem; font-weight: 700;
+             letter-spacing: .06em; text-transform: uppercase; vertical-align: middle; margin-left: 6px;
+             border: 1px solid;}
+  .pg-basis.reported {color:#0D7A6F; border-color:#0D7A6F44; background:#0D7A6F0F;}
+  .pg-basis.reconstructed {color:#B7791F; border-color:#B7791F44; background:#B7791F0F;}
+  .pg-basis.hypothetical {color:#5B6B82; border-color:#5B6B8244; background:#5B6B820F;}
+
+  /* three-question answer cards */
+  .pg-qs {display:grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 4px 0 18px 0;}
+  .pg-q {border: 1px solid var(--pg-line); border-top: 4px solid; border-radius: 12px; padding: 14px 18px;
+         background: var(--pg-card); box-shadow: var(--pg-shadow);}
+  .pg-q .n {font-size: .68rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+            color: var(--pg-muted);}
+  .pg-q .t {font-size: .98rem; font-weight: 650; color: var(--pg-ink); margin: 2px 0 6px 0;}
+  .pg-q .a {font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums;}
+  .pg-q .d {font-size: .84rem; color: var(--pg-muted); line-height: 1.5; margin-top: 4px;}
+  @media (max-width: 900px) {.pg-qs {grid-template-columns: 1fr;}}
+
+  /* sensitivity table: highlight the user's own level */
+  .pg-table tr.cur td {background:#F1F8F7;}
+  .pg-table tr.cur td.name {color: var(--pg-accent);}
 
   /* market status line */
   .pg-status {display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; font-size:.85rem; color: var(--pg-muted);
@@ -164,7 +198,7 @@ def _load_into_state(preset_id: str) -> None:
     st.session_state.supply = float(p.supply_bn)
     st.session_state.editor_version = st.session_state.get("editor_version", 0) + 1
     st.session_state.portfolio_meta = {"name": p.name, "description": p.description, "source": p.source,
-                                       "as_of": p.as_of, "edited": False}
+                                       "as_of": p.as_of, "basis": p.basis, "edited": False}
 
 
 def init_state() -> None:
@@ -196,7 +230,7 @@ def apply_scenario(sc: Scenario) -> None:
     mapping = {
         "sc_rate": sc.rate_shock_bp, "sc_run": sc.redemption_pct, "sc_days": sc.horizon_days,
         "sc_front": sc.front_load, "sc_freeze": sc.bank_freeze_pct, "sc_recovery": sc.frozen_recovery_pct,
-        "sc_stress": sc.stress_multiplier, "sc_gold": sc.gold_shock_pct, "sc_crypto": sc.crypto_shock_pct,
+        "sc_release": sc.frozen_release_day, "sc_stress": sc.stress_multiplier, "sc_gold": sc.gold_shock_pct, "sc_crypto": sc.crypto_shock_pct,
         "sc_risk": sc.risk_shock_pct, "sc_loan": sc.loan_loss_pct, "sc_panic": sc.panic_sensitivity,
     }
     for k, v in mapping.items():
@@ -208,7 +242,7 @@ def current_scenario(name: str = "Your scenario") -> Scenario:
     return Scenario(
         name=name, rate_shock_bp=float(s.sc_rate), redemption_pct=float(s.sc_run), horizon_days=int(s.sc_days),
         front_load=float(s.sc_front), bank_freeze_pct=float(s.sc_freeze), frozen_recovery_pct=float(s.sc_recovery),
-        stress_multiplier=float(s.sc_stress), gold_shock_pct=float(s.sc_gold), crypto_shock_pct=float(s.sc_crypto),
+        frozen_release_day=int(s.sc_release), max_wait_days=int(s.sc_wait), stress_multiplier=float(s.sc_stress), gold_shock_pct=float(s.sc_gold), crypto_shock_pct=float(s.sc_crypto),
         risk_shock_pct=float(s.sc_risk), loan_loss_pct=float(s.sc_loan), panic_sensitivity=float(s.sc_panic),
     )
 
@@ -219,9 +253,39 @@ def reference_scenario(name: str = "Reference") -> Scenario:
     return Scenario(
         name=name, rate_shock_bp=d["sc_rate"], redemption_pct=d["sc_run"], horizon_days=d["sc_days"],
         front_load=d["sc_front"], bank_freeze_pct=d["sc_freeze"], frozen_recovery_pct=d["sc_recovery"],
-        stress_multiplier=d["sc_stress"], gold_shock_pct=d["sc_gold"], crypto_shock_pct=d["sc_crypto"],
+        frozen_release_day=d["sc_release"], max_wait_days=d["sc_wait"], stress_multiplier=d["sc_stress"], gold_shock_pct=d["sc_gold"], crypto_shock_pct=d["sc_crypto"],
         risk_shock_pct=d["sc_risk"], loan_loss_pct=d["sc_loan"], panic_sensitivity=d["sc_panic"],
     )
+
+
+def matching_crisis() -> str | None:
+    """Name of the standard scenario the sliders currently match (ignoring the deadline), else None."""
+    cur = current_scenario().to_dict()
+    for sc in STANDARD_SCENARIOS:
+        ref = sc.to_dict()
+        if all(abs(float(cur[k]) - float(ref[k])) < 1e-9 for k in ref if k not in ("name", "max_wait_days")):
+            return sc.name
+    return None
+
+
+def wait_label(days: int) -> str:
+    return WAIT_OPTIONS.get(int(days), f"T+{int(days)}")
+
+
+def basis_badge(basis: str) -> str:
+    return f'<span class="pg-basis {basis}" title="{BASIS_HELP.get(basis, "")}">{BASIS.get(basis, basis)}</span>'
+
+
+def basis_notice(meta: dict) -> None:
+    """Warn that a benchmark portfolio is not a record of real reserves."""
+    basis = meta.get("basis", "hypothetical")
+    if basis == "hypothetical":
+        st.info("**Hypothetical portfolio for teaching.** It shows a mechanism, not any real issuer's reserves, so "
+                "its numbers do not describe what any stablecoin actually held.", icon=":material/school:")
+    elif basis == "reconstructed":
+        st.warning("**Approximate reconstruction.** The headline figures are public, but the split of the "
+                   "reserves is our estimate. Treat results as illustrative, not as what actually happened.",
+                   icon=":material/history:")
 
 
 def position_m() -> float:
@@ -254,7 +318,15 @@ def sidebar() -> None:
         reserves = sum(l.amount_bn for l in lines)
         backing = f"{reserves / supply:.2%}" if supply else "n/a"
         buffer = fmt_bp(reserves / supply - 1) if supply else "n/a"
-        status = "Edited in the Stress Lab" if meta.get("edited") else f"As of {meta.get('as_of', '')}"
+        basis = meta.get("basis", "hypothetical")
+        if meta.get("edited"):
+            status = "Edited in the Stress Lab"
+        elif basis == "reported":
+            status = f"Reported · as of {meta.get('as_of', '')}"
+        elif basis == "reconstructed":
+            status = f"Reconstructed (approx.) · {meta.get('as_of', '')}"
+        else:
+            status = "Hypothetical teaching portfolio"
         st.markdown(
             f'<div class="pg-side-card">'
             f'<div class="row"><span class="l">Tokens outstanding</span><span class="r">${supply:,.2f}bn</span></div>'
@@ -346,8 +418,10 @@ def narrative(summary: dict, sc: Scenario, supply0: float) -> list[str]:
     if s["price_loss"] > 1e-4:
         shocks.append(f"price and credit shocks cost {fmt_bn(s['price_loss'])}")
     if s["frozen"] > 1e-4:
+        stuck = (f"released on day {s['frozen_released_day']}" if s["frozen_released_day"]
+                 else "still frozen at the end")
         shocks.append(f"{fmt_bn(s['frozen'])} of bank cash was frozen "
-                      f"({sc.frozen_recovery_pct:.0f}% assumed recoverable)")
+                      f"({sc.frozen_recovery_pct:.0f}% assumed recoverable, {stuck})")
     if shocks:
         out.append("**Day 0:** " + "; ".join(shocks) + f". Coverage moved from {fmt_cov(s['start_coverage'])} "
                    f"to {fmt_cov(s['day0_coverage'])}.")
@@ -355,12 +429,22 @@ def narrative(summary: dict, sc: Scenario, supply0: float) -> list[str]:
         out.append(f"**Day 0:** no valuation shock. Coverage starts at {fmt_cov(s['start_coverage'])}.")
     out.append(f"**The run:** holders asked to redeem {fmt_bn(s['requested'])} over {sc.horizon_days} business days "
                f"and {fmt_bn(s['paid'])} was paid at $1.")
+    if s["days_simulated"] > sc.horizon_days:
+        out.append(f"**After the run:** requests were still queued, so the issuer kept paying until day "
+                   f"{s['days_simulated']} (the last deadline, {wait_label(s['max_wait_days'])}).")
+    if s["frozen_released_day"] and s["frozen"] > 1e-4:
+        out.append(f"**Stuck, not lost:** on day {s['frozen_released_day']} the recovered "
+                   f"{fmt_bn(s['frozen'] - s['frozen_writedown'])} of frozen cash became spendable again"
+                   + (f"; the other {fmt_bn(s['frozen_writedown'])} is a permanent loss."
+                      if s["frozen_writedown"] > 1e-4 else "."))
     if s["fire_sale_loss"] > 1e-4:
         out.append(f"**Selling in a hurry:** raising that cash cost {fmt_bn(s['fire_sale_loss'], 3)} in fire-sale "
                    "discounts.")
     if s["first_breach_day"] is not None:
         out.append(f"**Too slow:** from day {s['first_breach_day']} the issuer could not turn assets into cash fast "
-                   f"enough. {fmt_bn(s['unmet'])} of redemptions were still waiting at the end.")
+                   f"enough to pay within the deadline ({wait_label(s['max_wait_days'])}). "
+                   f"{fmt_bn(s['late_amount'])} of requests missed it and {fmt_bn(s['unmet'])} was still waiting "
+                   "at the end.")
     if s["final_coverage"] < s["day0_coverage"] - 1e-4 and s["day0_coverage"] < 1:
         out.append(f"**First-mover advantage:** early redeemers got $1 while reserves were below par, so the "
                    f"{fmt_bn(s['supply_end'])} of tokens left are backed by only {fmt_token(s['final_coverage'])} "

@@ -5,7 +5,7 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
-from app_pages.common import current_portfolio, fmt_bn, fmt_bp, page_header, section
+from app_pages.common import basis_notice, current_portfolio, fmt_bn, fmt_bp, page_header, section
 from pegguard import charts
 from pegguard.analysis import regulatory_check, risk_profile
 from pegguard.pricing import modified_duration
@@ -33,6 +33,7 @@ rp = risk_profile(lines, supply)
 rc = regulatory_check(lines, supply)
 
 meta = st.session_state.portfolio_meta
+basis_notice(meta)
 age, stale = data_age(meta.get("as_of", ""), meta.get("edited", False))
 k = st.columns(5)
 k[0].metric("Reserve data age", age, delta=stale, delta_color="inverse" if stale else "off",

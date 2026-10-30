@@ -1,13 +1,13 @@
-"""Overview: a risk dashboard for the stablecoins you hold. Coin tiles, the live market, a sortable risk ranking
-and the standard-scenario scorecard."""
+"""Dashboard: the summary view after the Stress Lab. Coin tiles, the live market, a sortable risk ranking and the
+standard-scenario scorecard."""
 
 from dataclasses import replace
 
 import pandas as pd
 import streamlit as st
 
-from app_pages.common import (PEG_ALERT_BP, fmt_bp, fmt_m, page_header, position_m, reference_scenario, section,
-                              verdict_chip)
+from app_pages.common import (BASIS, PEG_ALERT_BP, basis_badge, fmt_bp, fmt_m, page_header, position_m,
+                              reference_scenario, request_preset, section, verdict_chip)
 from app_pages.live_monitor import market_table
 from app_pages.live_monitor import render as live_monitor
 from pegguard.analysis import (STANDARD_SCENARIOS, breaking_point_grid, regulatory_check, risk_profile, run_library,
@@ -57,8 +57,9 @@ issuers = metrics[metrics["group"] == "issuer"]
 page_header(
     "Dashboard",
     "Stablecoin risk dashboard",
-    f"Peg, reserve strength and stress results for the stablecoins you hold. Reserve data as of "
-    f"{issuers['as_of'].max()}; every dollar figure is for your {fmt_m(pos, 1)} position (set it in the sidebar).")
+    f"The summary after the Stress Lab: peg, reserve strength and stress results for the stablecoins you hold, "
+    f"side by side. Reserve data as of {issuers['as_of'].max()}; every dollar figure is for your {fmt_m(pos, 1)} "
+    "position (set it in the sidebar).")
 
 
 # ---------------------------------------------------------------- coin tiles -----------
@@ -102,6 +103,10 @@ def coin_tile(row: pd.Series) -> str:
 cols = st.columns([1.25] * len(issuers) + [0.9])
 for col, (_, row) in zip(cols, issuers.iterrows()):
     col.markdown(coin_tile(row), unsafe_allow_html=True)
+    if col.button(f"Stress-test {row['symbol']}", key=f"stress_{row['id']}", icon=":material/science:",
+                  width="stretch"):
+        request_preset(row["id"])
+        st.switch_page("app_pages/stress_lab.py")
 with cols[-1]:
     total = market["supply_usd"].sum() / 1e9 if len(market) else float("nan")
     worst = issuers.loc[issuers["worst_value"].idxmin()]
@@ -125,11 +130,13 @@ live_monitor()
 # ---------------------------------------------------------------- risk ranking ---------
 st.divider()
 section("Risk ranking", "Compare")
-st.caption("Click a column header to sort. Issuers first, then benchmark and historical portfolios for context. "
-           "Use the table's toolbar to download it as CSV.")
+st.caption("Click a column header to sort. Issuers first, then benchmark portfolios for context. Data: Reported = "
+           "from the issuer's own reserve report; Reconstructed = approximate rebuild of a past portfolio; "
+           "Hypothetical = made up for teaching, not any real issuer's reserves. Use the toolbar to download as CSV.")
 rank = pd.DataFrame({
     "Portfolio": metrics["name"],
     "Type": metrics["group"].map({"issuer": "Issuer", "benchmark": "Benchmark"}),
+    "Data": metrics["basis"].map(BASIS),
     "Buffer (bp)": metrics["buffer"] * 1e4,
     "Cash in 1 day (%)": metrics["cash_1d"] * 100,
     "Cash in 5 days (%)": metrics["cash_5d"] * 100,
@@ -145,6 +152,8 @@ st.dataframe(
     rank, width="stretch", hide_index=True,
     column_config={
         "Portfolio": st.column_config.TextColumn(width="medium", pinned=True),
+        "Data": st.column_config.TextColumn(width="small",
+                                            help="Reported, Reconstructed (approximate) or Hypothetical (teaching)"),
         "Buffer (bp)": st.column_config.NumberColumn(format="%+.0f",
                                                      help="Reserves above tokens outstanding, before any shock"),
         "Cash in 1 day (%)": st.column_config.ProgressColumn(format="%.0f%%", min_value=0, max_value=100,
@@ -164,26 +173,30 @@ st.dataframe(
 
 # ---------------------------------------------------------------- scorecard ------------
 st.divider()
-section("Every portfolio under the same five scenarios", "Scorecard")
-st.caption("Same shocks, same assumptions, so portfolios can be compared like for like. "
-           "Open the Stress Lab to change any assumption.")
-html = ['<table class="pg-table"><tr><th>Portfolio</th>']
-for sc in STANDARD_SCENARIOS:
-    html.append(f"<th>{sc.name}</th>")
-html.append("</tr>")
-ncol = len(STANDARD_SCENARIOS) + 1
-for group, label in (("issuer", "Issuers"), ("benchmark", "Benchmarks and history")):
-    html.append(f'<tr class="grp"><td colspan="{ncol}">{label}</td></tr>')
-    for _, row in metrics[metrics["group"] == group].iterrows():
-        cls = ' class="bench"' if group == "benchmark" else ""
-        html.append(f'<tr{cls}><td class="name">{row["name"]}</td>')
-        for sc in STANDARD_SCENARIOS:
-            val = row["values"][sc.name]
-            html.append(f'<td>{verdict_chip(row["verdicts"][sc.name])}'
-                        f'<div class="val">&#36;{val:.3f} / token</div></td>')
-        html.append("</tr>")
-html.append("</table>")
-st.markdown("".join(html), unsafe_allow_html=True)
-st.caption("Value per token = lowest reserves per token outstanding during the scenario. "
-           "HOLDS: paid on time and at par · LIQUIDITY STRAIN: solvent but too slow · "
-           "BELOW PAR: paid, but reserves < tokens · BREAKS: both.")
+section("Every portfolio under the same five crises", "Scorecard")
+st.caption("Same shocks, same assumptions, so portfolios can be compared like for like. Walk through one coin "
+           "and one crisis in the Stress Lab first; this grid is the summary.")
+with st.expander("Show the scorecard", icon=":material/table_view:"):
+    html = ['<table class="pg-table"><tr><th>Portfolio</th>']
+    for sc in STANDARD_SCENARIOS:
+        html.append(f"<th>{sc.name}</th>")
+    html.append("</tr>")
+    ncol = len(STANDARD_SCENARIOS) + 1
+    groups = (("issuer", "Issuers · from reported reserves"),
+              ("benchmark", "Teaching benchmarks · hypothetical or reconstructed, not actual reserves"))
+    for group, label in groups:
+        html.append(f'<tr class="grp"><td colspan="{ncol}">{label}</td></tr>')
+        for _, row in metrics[metrics["group"] == group].iterrows():
+            cls = ' class="bench"' if group == "benchmark" else ""
+            html.append(f'<tr{cls}><td class="name">{row["name"]}{basis_badge(row["basis"])}</td>')
+            for sc in STANDARD_SCENARIOS:
+                val = row["values"][sc.name]
+                html.append(f'<td>{verdict_chip(row["verdicts"][sc.name])}'
+                            f'<div class="val">&#36;{val:.3f} / token</div></td>')
+            html.append("</tr>")
+    html.append("</table>")
+    st.markdown("".join(html), unsafe_allow_html=True)
+    st.caption("Value per token = lowest reserves per token outstanding during the scenario. "
+               "HOLDS: paid on time and at par · LIQUIDITY STRAIN: solvent but too slow · "
+               "BELOW PAR: paid, but reserves < tokens · BREAKS: both. Benchmark results illustrate a mechanism; "
+               "they are not a record of what any coin actually held or did.")

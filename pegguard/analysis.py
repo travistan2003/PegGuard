@@ -6,6 +6,7 @@
 * regulatory_check      simplified GENIUS Act / MAS SCS reserve eligibility test
 * risk_profile          duration, weighted maturity and liquidity ladder of the reserves
 * position_outcome      what a stress run means for one holder's position: loss if held, days to exit if redeemed
+* stress_sensitivity    the same scenario at several fire-sale stress levels, side by side
 """
 
 from __future__ import annotations
@@ -221,6 +222,7 @@ def position_outcome(summary: dict, daily: pd.DataFrame, position: float) -> dic
     worst = summary["min_token_value"]
     haircut = 0.0 if not np.isfinite(worst) else max(0.0, 1.0 - worst)
     day_full, share = exit_timing(daily)
+    wait = summary.get("max_wait_days", 0)
     return {
         "position": position,
         "hold_value": position * (1 - haircut),
@@ -228,4 +230,26 @@ def position_outcome(summary: dict, daily: pd.DataFrame, position: float) -> dic
         "haircut_bp": haircut * 10_000,
         "exit_day": day_full,
         "exit_share_paid": share,
+        "exit_on_time": day_full is not None and day_full - 1 <= wait,
+        "last_day": int(daily["day"].max()),
     }
+
+
+# --------------------------------------------------------------------------------------
+# Sensitivity
+# --------------------------------------------------------------------------------------
+
+STRESS_LEVELS = (1.0, 2.0, 3.0, 5.0)
+
+
+def stress_sensitivity(lines: list[ReserveLine], supply: float, base: Scenario,
+                       levels: Iterable[float] = STRESS_LEVELS) -> pd.DataFrame:
+    """The same scenario re-run at several fire-sale stress multipliers (the user's own level is always included)."""
+    levels = sorted(set(float(x) for x in levels) | {float(base.stress_multiplier)})
+    rows = []
+    for m in levels:
+        s = run_stress(lines, supply, replace(base, stress_multiplier=m)).summary
+        rows.append({"stress": m, "current": m == float(base.stress_multiplier), "verdict": s["verdict"],
+                     "min_token_value": s["min_token_value"], "fire_sale_loss": s["fire_sale_loss"],
+                     "late_amount": s["late_amount"], "unmet": s["unmet"]})
+    return pd.DataFrame(rows)

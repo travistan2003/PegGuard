@@ -9,7 +9,15 @@ Day 0  Shocks hit instantly:
 Day 1..H  Holders ask to redeem. The issuer pays $1 per token, raising cash through a
        liquidity waterfall: cash, repo, money market fund, bills (shortest first), notes,
        gold, crypto, other, loans. Each asset can only be sold up to its daily liquidity and
-       sales below cash pay a fire-sale discount. Requests it cannot meet are queued.
+       sales below cash pay a fire-sale discount. Requests it cannot meet are queued and
+       paid first in, first out.
+
+Frozen bank cash can be released on a chosen day: the recovered share becomes spendable
+cash again (stuck, then usable), while the unrecovered share stays lost.
+
+Each day's requests must be paid within `max_wait_days` business days (0 = the same day).
+A request still waiting after its deadline is late. If requests are still queued when the
+run ends, the simulation keeps going (with no new requests) until every deadline has passed.
 
 Optional panic feedback (Diamond & Dybvig 1983): when reserves fall below the tokens
 outstanding, paying early redeemers $1 leaves *less* for everyone else, so redemptions
@@ -45,6 +53,8 @@ class Scenario:
     front_load: float = 0.35  # 0 = evenly spread; higher = more of the run on day 1
     bank_freeze_pct: float = 0.0  # % of bank cash frozen in a bank failure
     frozen_recovery_pct: float = 100.0  # expected recovery on frozen cash (for valuation)
+    frozen_release_day: int = 0  # day the recovered part of frozen cash can be spent again (0 = stays frozen)
+    max_wait_days: int = 0  # redemption deadline: each day's requests must be paid within this many days
     stress_multiplier: float = 1.0  # scales every fire-sale discount
     gold_shock_pct: float = 0.0  # e.g. -10
     crypto_shock_pct: float = 0.0  # e.g. -30
@@ -147,17 +157,37 @@ def run_stress(lines: Iterable[ReserveLine], supply_bn: float, sc: Scenario) -> 
     ]
 
     base = sc.redemption_pct / 100 * supply0 * sc.schedule()
+    horizon = len(base)
+    wait = max(int(sc.max_wait_days), 0)
+    release_day = max(int(sc.frozen_release_day), 0)
     queue = 0.0
+    cohorts: list[list[float]] = []  # [arrival day, amount still waiting], oldest first
     total_paid = 0.0
     total_requested = 0.0
+    late_amount = 0.0
     first_breach_day = None
+    released = False
 
-    for d in range(1, len(base) + 1):
+    d = 0
+    while d < horizon or (queue > 1e-9 and d < horizon + wait):
+        d += 1
+        if release_day and d == release_day and frozen.sum() > 0:
+            # The recovered part of the frozen cash is usable again from today
+            for i in range(n):
+                if frozen[i] > 0:
+                    back = frozen[i] * recovery
+                    value[i] += back
+                    capacity[i] += back * lines[i].liquidity
+            frozen_value = 0.0
+            released = True
+
         under = max(0.0, 1.0 - coverage) if np.isfinite(coverage) else 0.0
         panic = 1.0 + sc.panic_sensitivity * under * 100
-        new_req = min(base[d - 1] * panic, max(supply - queue, 0.0))
+        new_req = min(base[d - 1] * panic, max(supply - queue, 0.0)) if d <= horizon else 0.0
         requested = new_req + queue
         total_requested += new_req
+        if new_req > 1e-12:
+            cohorts.append([d, new_req])
 
         need = requested
         day_loss = 0.0
@@ -177,8 +207,17 @@ def run_stress(lines: Iterable[ReserveLine], supply_bn: float, sc: Scenario) -> 
             need -= proceeds
         paid = requested - max(need, 0.0)
         queue = requested - paid
-        if queue > 1e-9 and first_breach_day is None:
-            first_breach_day = d
+        left = paid  # pay the oldest requests first
+        for c in cohorts:
+            take = min(c[1], left)
+            c[1] -= take
+            left -= take
+        cohorts = [c for c in cohorts if c[1] > 1e-9]
+        late_today = sum(c[1] for c in cohorts if c[0] + wait == d)  # deadline passed today, still unpaid
+        if late_today > 1e-9:
+            late_amount += late_today
+            if first_breach_day is None:
+                first_breach_day = d
         supply -= paid
         total_paid += paid
         reserves = float(value.sum() + frozen_value)
@@ -222,7 +261,7 @@ def run_stress(lines: Iterable[ReserveLine], supply_bn: float, sc: Scenario) -> 
         headline = "Every redemption is paid, but reserves end up worth less than the tokens outstanding."
     elif breach:
         verdict = "LIQUIDITY STRAIN"
-        headline = "Solvent, but the issuer cannot raise cash fast enough to pay everyone on time."
+        headline = "Solvent, but the issuer cannot raise cash fast enough to pay everyone within the deadline."
     else:
         verdict = "HOLDS"
         headline = "Every redemption is paid at $1 and reserves stay at or above par."
@@ -249,6 +288,10 @@ def run_stress(lines: Iterable[ReserveLine], supply_bn: float, sc: Scenario) -> 
         paid=total_paid,
         unmet=unmet_final,
         first_breach_day=first_breach_day,
+        late_amount=late_amount,  # requests (in $bn) still unpaid when their deadline passed
+        max_wait_days=wait,
+        frozen_released_day=release_day if released else None,
+        days_simulated=d,
         stayers_loss=stayers_loss,
         supply_end=supply,
         reserves_end=reserves,

@@ -100,6 +100,7 @@ class Portfolio:
     description: str = ""
     source: str = ""
     as_of: str = ""
+    basis: str = "hypothetical"  # reported | reconstructed | hypothetical
 
     @property
     def reserves_bn(self) -> float:

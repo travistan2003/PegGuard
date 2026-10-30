@@ -2,7 +2,7 @@
   "presets": [
     {
       "id": "usdc_2026q2",
-      "group": "issuer", "symbol": "USDC",
+      "group": "issuer", "basis": "reported", "symbol": "USDC",
       "name": "USDC-style reserves (Q2 2026)",
       "supply_bn": 72.93,
       "as_of": "2026-06-30",
@@ -15,7 +15,7 @@
     },
     {
       "id": "usdt_2026q2",
-      "group": "issuer", "symbol": "USDT",
+      "group": "issuer", "basis": "reported", "symbol": "USDT",
       "name": "USDT-style reserves (Q2 2026)",
       "supply_bn": 183.64,
       "as_of": "2026-06-30",
@@ -34,7 +34,7 @@
     },
     {
       "id": "svb_style",
-      "group": "benchmark",
+      "group": "benchmark", "basis": "hypothetical",
       "name": "SVB-style duration mismatch (hypothetical)",
       "supply_bn": 40.0,
       "as_of": "Hypothetical",
@@ -49,12 +49,12 @@
     },
     {
       "id": "usdc_2023_svb",
-      "group": "benchmark",
-      "name": "USDC on 10 Mar 2023 (SVB weekend, approx.)",
+      "group": "benchmark", "basis": "reconstructed",
+      "name": "USDC on 10 Mar 2023, SVB weekend (reconstructed)",
       "supply_bn": 40.0,
       "as_of": "2023-03-10",
       "source": "Circle disclosed on 10 Mar 2023 that $3.3bn of roughly $40bn of USDC reserves was held at Silicon Valley Bank (CNBC, 11 Mar 2023). The split between other bank cash and the Circle Reserve Fund is approximate.",
-      "description": "Used by the case-study page. About a third of the bank cash was at the bank that failed.",
+      "description": "Reconstruction for teaching: the $3.3bn at Silicon Valley Bank is public, but the split of the other reserves is our estimate, not Circle's actual book. About a third of the bank cash was at the bank that failed.",
       "lines": [
         {"name": "Cash at Silicon Valley Bank", "asset_class": "cash_bank", "amount_bn": 3.3, "maturity_years": 0.0, "yield_pct": 0.0},
         {"name": "Cash at other banks", "asset_class": "cash_bank", "amount_bn": 6.0, "maturity_years": 0.0, "yield_pct": 0.0},
@@ -63,7 +63,7 @@
     },
     {
       "id": "narrow",
-      "group": "benchmark",
+      "group": "benchmark", "basis": "hypothetical",
       "name": "Narrow benchmark: cash + short bills (hypothetical)",
       "supply_bn": 10.0,
       "as_of": "Hypothetical",

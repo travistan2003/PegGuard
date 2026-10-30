@@ -37,6 +37,23 @@ Optional feedback inspired by Diamond & Dybvig (1983): each day's new requests a
 1 + k × 100 × (1 − coverage). When reserves are below par, paying early redeemers $1 leaves less for the rest, so
 staying is irrational. Off by default, so base results are not driven by it.
 
+**Are the benchmark portfolios what those coins actually held?**
+No, and the app says so. Every portfolio is labelled. *Reported* means built from the issuer's own report (USDC and
+USDT, Q2 2026). *Reconstructed* means the headline figure is public (Circle's $3.3bn at SVB) but the split of the rest
+is our estimate. *Hypothetical* means made up for teaching (SVB-style mismatch, narrow benchmark). Results for those
+illustrate a mechanism, not what happened.
+
+**Is frozen cash treated as lost?**
+Only the part you mark unrecoverable. The rest is valued at the recovery rate, and you choose the day it becomes usable
+again. Until then it is stuck: it counts toward backing but cannot pay redemptions. That separates "temporarily stuck"
+(SVB deposits came back after the weekend) from "permanently lost".
+
+**What counts as a late redemption?**
+You set the acceptable wait: same day, T+1, T+2, T+3 or T+5 (the MAS standard). Each day's requests are checked against
+that deadline, paid first in, first out. If requests are still queued when the run ends, the model keeps paying until
+the last deadline passes. Example: under Full panic, USDT has about $35bn paid late against a same-day deadline but
+about $19bn against T+5.
+
 **What happens if the API is down during the demo?**
 Nothing. Everything except the Live Monitor section on the Dashboard works offline, and that section falls back to the last cached fetch, then to the
 bundled snapshot. We demo with live data off.
